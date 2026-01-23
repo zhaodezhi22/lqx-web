@@ -7,4 +7,5 @@ import com.liuqin.opera.entity.TicketOrder;
 public interface TicketService extends IService<TicketOrder> {
     boolean lockSeat(Long eventId, String seatId, Long userId);
     TicketOrder createTicketOrder(CreateTicketDTO dto, Long userId);
+    void cancelUnpaidOrders();
 }

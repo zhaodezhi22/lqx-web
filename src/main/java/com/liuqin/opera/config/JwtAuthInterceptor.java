@@ -51,11 +51,12 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
                 String token = auth.substring(7);
                 try {
                     Claims claims = jwtUtils.parseToken(token);
-                    request.setAttribute("userId", claims.get("userId", Long.class));
+                    Object userIdVal = claims.get("userId");
+                    request.setAttribute("userId", convertToLong(userIdVal));
                     request.setAttribute("username", claims.get("username", String.class));
                     request.setAttribute("role", claims.get("role", Integer.class));
                 } catch (Exception e) {
-                    // token 非法时，继续匿名访问（视具体业务需求而定，这里选择不拦截）
+                    // token 非法时，继续匿名访问
                 }
             }
             return true;
@@ -70,7 +71,9 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
         try {
             Claims claims = jwtUtils.parseToken(token);
             Integer userRole = claims.get("role", Integer.class);
-            request.setAttribute("userId", claims.get("userId", Long.class));
+            Object userIdVal = claims.get("userId");
+            
+            request.setAttribute("userId", convertToLong(userIdVal));
             request.setAttribute("username", claims.get("username", String.class));
             request.setAttribute("role", userRole);
 
@@ -90,6 +93,13 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
             writeUnauthorized(response, "令牌无效或已过期");
             return false;
         }
+    }
+
+    private Long convertToLong(Object val) {
+        if (val == null) return null;
+        if (val instanceof Number) return ((Number) val).longValue();
+        if (val instanceof String) return Long.parseLong((String) val);
+        return null;
     }
 
     private void writeUnauthorized(HttpServletResponse response, String message) {

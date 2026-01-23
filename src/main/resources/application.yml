@@ -13,15 +13,15 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     cache-enabled: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: auto
-      logic-delete-field: deleted
-      logic-delete-value: 1
-      logic-not-delete-value: 0
 
 server:
   port: 8081
 
-debug: true
-
+logging:
+  level:
+    com.liuqin.opera.mapper: debug
+    com.lqx.opera.mapper: debug

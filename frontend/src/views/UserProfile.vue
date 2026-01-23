@@ -33,20 +33,49 @@
           <el-tabs v-model="activeTab">
             <el-tab-pane label="我的订单" name="orders">
               <el-table :data="orders" v-loading="loading" style="width: 100%">
-                <el-table-column prop="orderId" label="订单ID" width="90" />
+                <!-- 隐藏订单ID列 -->
+                <!-- <el-table-column prop="orderId" label="订单ID" width="90" /> -->
                 <el-table-column prop="orderNo" label="订单编号" />
+                <el-table-column prop="createTime" label="下单时间" width="180" />
                 <el-table-column prop="totalAmount" label="金额(¥)" width="120" />
                 <el-table-column label="状态" width="120">
                   <template #default="{ row }">
                     <el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="payTime" label="支付时间" width="180" />
+                <!-- <el-table-column prop="payTime" label="支付时间" width="180" /> -->
                 <el-table-column prop="shipTime" label="发货时间" width="180" />
                 <el-table-column prop="logisticsNo" label="物流单号" />
               </el-table>
               <div v-if="!loading && (!orders || orders.length === 0)" style="margin-top: 16px">
                 <el-empty description="暂无订单" />
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="我的票务" name="tickets">
+              <el-table :data="tickets" v-loading="ticketsLoading" style="width: 100%">
+                <el-table-column prop="orderNo" label="订单编号" width="180" />
+                <el-table-column prop="seatInfo" label="座位" width="120" />
+                <el-table-column prop="price" label="票价" width="100" />
+                <el-table-column prop="createdTime" label="购票时间" width="180">
+                   <template #default="{ row }">
+                     {{ formatTime(row.createdTime) }}
+                   </template>
+                </el-table-column>
+                <el-table-column label="状态" width="100">
+                  <template #default="{ row }">
+                    <el-tag type="success" v-if="row.status === 1">已支付</el-tag>
+                    <el-tag type="warning" v-else>待支付</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作">
+                  <template #default="{ row }">
+                    <el-button link type="primary" v-if="row.status === 1">查看二维码</el-button>
+                    <el-button link type="primary" v-else>去支付</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+               <div v-if="!ticketsLoading && (!tickets || tickets.length === 0)" style="margin-top: 16px">
+                <el-empty description="暂无票务" />
               </div>
             </el-tab-pane>
             <el-tab-pane label="基本资料" name="profile">
@@ -73,7 +102,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
@@ -114,16 +143,44 @@ const statusTagType = (s) => {
   }
 }
 
+const tickets = ref([])
+const ticketsLoading = ref(false)
+
+const formatTime = (arr) => {
+  if (!arr) return ''
+  if (Array.isArray(arr)) {
+    // [2024, 1, 2, 12, 30, 0]
+    const [y, m, d, h, min, s] = arr
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return arr
+}
+
 const fetchMyOrders = async () => {
   loading.value = true
   try {
     const res = await request.get('/mall/my-orders')
-    orders.value = res.data || []
+    if (res.code === 200) {
+      orders.value = res.data || []
+    }
   } catch (e) {
-    console.error(e)
-    ElMessage.error(e?.response?.data?.message || '加载订单失败')
+    ElMessage.error('加载订单失败')
   } finally {
     loading.value = false
+  }
+}
+
+const fetchTickets = async () => {
+  ticketsLoading.value = true
+  try {
+    const res = await request.get('/ticket/my-tickets')
+    if (res.code === 200) {
+      tickets.value = res.data || []
+    }
+  } catch (e) {
+    ElMessage.error('加载票务失败')
+  } finally {
+    ticketsLoading.value = false
   }
 }
 
@@ -153,7 +210,20 @@ onMounted(() => {
   if (route.query.tab) {
     activeTab.value = route.query.tab
   }
-  fetchMyOrders()
+  // Initial fetch based on active tab
+  if (activeTab.value === 'orders') {
+    fetchMyOrders()
+  } else if (activeTab.value === 'tickets') {
+    fetchTickets()
+  }
+})
+
+watch(activeTab, (val) => {
+  if (val === 'orders') {
+    fetchMyOrders()
+  } else if (val === 'tickets') {
+    fetchTickets()
+  }
 })
 </script>
 

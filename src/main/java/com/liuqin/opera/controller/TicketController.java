@@ -48,18 +48,60 @@ public class TicketController {
 
     @PostMapping("/order")
     public Result<TicketOrder> createOrder(@RequestBody CreateTicketDTO dto, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
-        if (userId == null) {
+        // 从 Token 中获取 userId (Object -> Number -> Long)
+        Object userIdObj = request.getAttribute("userId");
+        if (userIdObj == null) {
             return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
         }
+        Long userId;
+        if (userIdObj instanceof Number) {
+            userId = ((Number) userIdObj).longValue();
+        } else {
+            try {
+                userId = Long.parseLong(userIdObj.toString());
+            } catch (NumberFormatException e) {
+                return Result.fail(400, "非法用户ID");
+            }
+        }
+
         try {
             TicketOrder order = ticketService.createTicketOrder(dto, userId);
             return Result.success(order);
         } catch (RuntimeException e) {
+            e.printStackTrace();
             return Result.fail(400, e.getMessage());
         } catch (Exception e) {
+            e.printStackTrace();
             return Result.fail(500, "购票失败: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/my-tickets")
+    public Result<List<TicketOrder>> getMyTickets(HttpServletRequest request) {
+        // 从 Token 中获取 userId (Object -> Number -> Long)
+        Object userIdObj = request.getAttribute("userId");
+        if (userIdObj == null) {
+            return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
+        }
+        Long userId;
+        if (userIdObj instanceof Number) {
+            userId = ((Number) userIdObj).longValue();
+        } else {
+            try {
+                userId = Long.parseLong(userIdObj.toString());
+            } catch (NumberFormatException e) {
+                return Result.fail(400, "非法用户ID");
+            }
+        }
+
+        System.out.println("DEBUG: getMyTickets userId=" + userId);
+        
+        LambdaQueryWrapper<TicketOrder> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(TicketOrder::getUserId, userId)
+                .orderByDesc(TicketOrder::getCreatedTime);
+        List<TicketOrder> list = ticketService.list(wrapper);
+        System.out.println("DEBUG: Found " + list.size() + " tickets.");
+        return Result.success(list);
     }
 
     @GetMapping("/upcoming")

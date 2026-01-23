@@ -69,17 +69,15 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         order.setUserId(userId);
         order.setTotalAmount(total);
         order.setStatus(1); // 模拟支付成功 -> 已支付待发货
-        order.setPayTime(LocalDateTime.now());
-        order.setCreatedTime(LocalDateTime.now());
+        order.setCreateTime(LocalDateTime.now());
         this.save(order);
 
-        Long orderId = order.getOrderId();
+        Long orderId = order.getId();
         for (MallOrderItem oi : toSaveItems) {
             oi.setOrderId(orderId);
         }
         mallOrderItemService.saveBatch(toSaveItems);
         
-        order.setItems(toSaveItems); // 回填items以便前端显示
         return order;
     }
 }

@@ -104,7 +104,8 @@ const buyNow = async () => {
       try {
         const res = await request.post('/ticket/order', {
           eventId: event.value.eventId,
-          seatId: seatId
+          seatInfo: seatId,
+          price: event.value.ticketPrice
         })
         if (res.code === 200) {
           successIds.push(seatId)
@@ -120,7 +121,7 @@ const buyNow = async () => {
       ElMessage.warning(`购买部分成功。成功: ${successIds.length}, 失败: ${failIds.length}`)
     } else {
       ElMessage.success('购票成功！')
-      router.push('/my-orders') // Redirect to orders page
+      router.push('/profile') // Redirect to profile page (which has tickets tab)
     }
     
     // Refresh to update layout (sold status)

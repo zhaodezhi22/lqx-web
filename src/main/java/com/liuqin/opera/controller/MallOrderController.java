@@ -3,21 +3,25 @@ package com.liuqin.opera.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.liuqin.opera.common.Result;
 import com.liuqin.opera.common.annotation.RequireRole;
-import com.liuqin.opera.common.dto.CreateMallOrderItem;
 import com.liuqin.opera.common.dto.CreateMallOrderRequest;
-import com.liuqin.opera.common.dto.ShipRequest;
+import com.liuqin.opera.common.dto.MallOrderDto;
 import com.liuqin.opera.entity.MallOrder;
 import com.liuqin.opera.entity.MallOrderItem;
-import com.liuqin.opera.entity.Product;
 import com.liuqin.opera.service.MallOrderItemService;
 import com.liuqin.opera.service.MallOrderService;
 import com.liuqin.opera.service.ProductService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.BeanUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/mall")
@@ -35,107 +39,127 @@ public class MallOrderController {
         this.productService = productService;
     }
 
-    @PostMapping("/orders")
-    public Result<MallOrder> createOrder(@RequestBody CreateMallOrderRequest req, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
-        if (userId == null) {
+    @PostMapping(value = {"/orders", "/order/create"})
+    @RequireRole({0, 1, 2, 3})
+    public Result<String> createOrder(@RequestBody CreateMallOrderRequest createReq, HttpServletRequest request) {
+        Object userIdObj = request.getAttribute("userId");
+        if (userIdObj == null) {
             return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
         }
-        if (req.getItems() == null || req.getItems().isEmpty()) {
-            return Result.fail(400, "订单项不能为空");
+        Long userId;
+        if (userIdObj instanceof Number) {
+            userId = ((Number) userIdObj).longValue();
+        } else {
+            userId = Long.parseLong(userIdObj.toString());
         }
+
         try {
-            MallOrder order = mallOrderService.createOrder(userId, req.getItems());
-            return Result.success(order);
-        } catch (RuntimeException e) {
-            return Result.fail(400, e.getMessage());
+            if (createReq.getItems() == null || createReq.getItems().isEmpty()) {
+                return Result.fail(400, "订单商品不能为空");
+            }
+            MallOrder order = mallOrderService.createOrder(userId, createReq.getItems());
+            
+            // 如果 CreateMallOrderRequest 有 address，更新它
+            if (createReq.getAddress() != null && !createReq.getAddress().isEmpty()) {
+                order.setAddressSnapshot(createReq.getAddress());
+                mallOrderService.updateById(order);
+            }
+            return Result.success(order.getOrderNo());
         } catch (Exception e) {
+            e.printStackTrace();
             return Result.fail(500, "下单失败: " + e.getMessage());
         }
     }
 
-    @GetMapping("/orders")
-    @RequireRole({2, 3})
-    public Result<List<MallOrder>> listOrders(@RequestParam(required = false) Integer status) {
-        LambdaQueryWrapper<MallOrder> wrapper = new LambdaQueryWrapper<>();
-        if (status != null) {
-            wrapper.eq(MallOrder::getStatus, status);
-        }
-        wrapper.orderByDesc(MallOrder::getCreatedTime);
-        return Result.success(mallOrderService.list(wrapper));
-    }
-
-    @GetMapping("/orders/{orderId}/items")
-    @RequireRole({2, 3})
-    public Result<List<MallOrderItem>> listOrderItems(@PathVariable Long orderId) {
-        LambdaQueryWrapper<MallOrderItem> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(MallOrderItem::getOrderId, orderId);
-        return Result.success(mallOrderItemService.list(wrapper));
-    }
-
-    @PutMapping("/orders/{orderId}/ship")
-    @RequireRole({2, 3})
-    public Result<Boolean> shipOrder(@PathVariable Long orderId, @RequestBody(required = false) ShipRequest shipRequest) {
-        MallOrder order = mallOrderService.getById(orderId);
-        if (order == null) {
-            return Result.fail(404, "订单不存在");
-        }
-        if (order.getStatus() == null || order.getStatus() != 1) {
-            return Result.fail(400, "订单状态不可发货");
-        }
-        order.setStatus(2);
-        order.setShipTime(LocalDateTime.now());
-        if (shipRequest != null) {
-            order.setLogisticsNo(shipRequest.getLogisticsNo());
-        }
-        boolean ok = mallOrderService.updateById(order);
-        return ok ? Result.success(true) : Result.fail("发货失败");
-    }
-
     @GetMapping("/my-orders")
     @RequireRole({0, 1, 2, 3})
-    public Result<List<MallOrder>> myOrders(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
-        if (userId == null) {
-            return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
-        }
-        LambdaQueryWrapper<MallOrder> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(MallOrder::getUserId, userId)
-                .orderByDesc(MallOrder::getCreatedTime);
-        List<MallOrder> orders = mallOrderService.list(wrapper);
-        for (MallOrder order : orders) {
-            LambdaQueryWrapper<MallOrderItem> itemWrapper = new LambdaQueryWrapper<>();
-            itemWrapper.eq(MallOrderItem::getOrderId, order.getOrderId());
-            order.setItems(mallOrderItemService.list(itemWrapper));
-        }
-        return Result.success(orders);
-    }
+    public Result<List<MallOrderDto>> getMyOrders(HttpServletRequest request) {
+        try {
+            Object userIdObj = request.getAttribute("userId");
+            if (userIdObj == null) {
+                return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
+            }
+            Long userId;
+            if (userIdObj instanceof Number) {
+                userId = ((Number) userIdObj).longValue();
+            } else if (userIdObj instanceof String) {
+                userId = Long.parseLong((String) userIdObj);
+            } else {
+                throw new IllegalArgumentException("Invalid userId type: " + userIdObj.getClass());
+            }
 
-    @GetMapping("/sales-stats")
-    @RequireRole(1)
-    public Result<Object> salesStats(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
-        if (userId == null) return Result.fail(401, "未登录");
-        
-        List<Product> myProducts = productService.list(new LambdaQueryWrapper<Product>().eq(Product::getSellerId, userId));
-        if (myProducts.isEmpty()) {
-            return Result.success(java.util.Map.of("totalSales", 0, "orderCount", 0, "productCount", 0));
-        }
-        List<Long> productIds = myProducts.stream().map(Product::getProductId).collect(java.util.stream.Collectors.toList());
-        
-        List<MallOrderItem> items = mallOrderItemService.list(new LambdaQueryWrapper<MallOrderItem>()
-                .in(MallOrderItem::getProductId, productIds));
+            // 1. Query Orders
+            LambdaQueryWrapper<MallOrder> orderWrapper = new LambdaQueryWrapper<>();
+            orderWrapper.eq(MallOrder::getUserId, userId)
+                        .orderByDesc(MallOrder::getId); // Using new ID field
+            List<MallOrder> orders = mallOrderService.list(orderWrapper);
+
+            if (orders.isEmpty()) {
+                return Result.success(new ArrayList<>());
+            }
+
+            // 2. Collect Order IDs
+            List<Long> orderIds = orders.stream().map(MallOrder::getId).collect(Collectors.toList());
+
+            // 3. Batch Query Items
+            LambdaQueryWrapper<MallOrderItem> itemWrapper = new LambdaQueryWrapper<>();
+            itemWrapper.in(MallOrderItem::getOrderId, orderIds);
+            List<MallOrderItem> allItems = mallOrderItemService.list(itemWrapper);
+
+            // 4. Map to DTO
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            List<MallOrderDto> dtos = orders.stream().map(order -> {
+                MallOrderDto dto = new MallOrderDto();
+                BeanUtils.copyProperties(order, dto);
+                dto.setId(null); // 隐藏订单 ID
+
+                // 优先使用数据库存储的 createTime
+                LocalDateTime createTime = order.getCreateTime();
                 
-        java.math.BigDecimal totalSales = items.stream()
-            .map(item -> item.getPrice().multiply(new java.math.BigDecimal(item.getQuantity())))
-            .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-            
-        long orderCount = items.stream().map(MallOrderItem::getOrderId).distinct().count();
-        
-        return Result.success(java.util.Map.of(
-            "totalSales", totalSales,
-            "orderCount", orderCount,
-            "productCount", myProducts.size()
-        ));
+                // 如果数据库没有 createTime (旧数据)，尝试从订单号解析
+                if (createTime == null && order.getOrderNo() != null && order.getOrderNo().length() > 17) {
+                    try {
+                        String tsStr = order.getOrderNo().substring(4, 17);
+                        long ts = Long.parseLong(tsStr);
+                        createTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault());
+                    } catch (Exception ignore) {}
+                }
+
+                if (createTime != null) {
+                    // 设置下单时间
+                    dto.setCreateTime(dtf.format(createTime));
+
+                    // 模拟支付时间 = 下单时间
+                    if (order.getStatus() != null && order.getStatus() >= 1) {
+                        dto.setPayTime(dtf.format(createTime));
+                    }
+
+                    // 模拟发货时间 = 下单时间 + 48小时 (如果待发货)
+                    LocalDateTime deadline = createTime.plusHours(48);
+                    if (order.getStatus() != null && order.getStatus() == 1) {
+                         long minutes = java.time.temporal.ChronoUnit.MINUTES.between(LocalDateTime.now(), deadline);
+                         long hours = (long) Math.ceil(minutes / 60.0);
+                         if (hours <= 0) hours = 1;
+                         dto.setShipTime(hours + "小时内");
+                    } else if (order.getStatus() != null && order.getStatus() >= 2) {
+                         // 已发货则显示下单+48h作为模拟发货时间
+                         dto.setShipTime(dtf.format(deadline));
+                    }
+                }
+                
+                // Filter items for this order
+                List<MallOrderItem> myItems = allItems.stream()
+                        .filter(item -> item.getOrderId() != null && item.getOrderId().equals(order.getId()))
+                        .collect(Collectors.toList());
+                dto.setItems(myItems);
+                
+                return dto;
+            }).collect(Collectors.toList());
+
+            return Result.success(dtos);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Result.fail(500, "加载订单失败 [" + e.getClass().getSimpleName() + "]: " + e.getMessage());
+        }
     }
 }
