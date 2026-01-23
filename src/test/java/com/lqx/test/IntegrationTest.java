@@ -2,12 +2,12 @@ package com.lqx.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.liuqin.opera.LiuqinOperaApplication;
-import com.liuqin.opera.common.dto.LoginRequest;
-import com.liuqin.opera.common.dto.RegisterRequest;
-import com.liuqin.opera.entity.PerformanceEvent;
-import com.liuqin.opera.service.PerformanceEventService;
-import com.liuqin.opera.utils.JwtUtils;
+import com.lqx.opera.LqxOperaApplication;
+import com.lqx.opera.common.dto.LoginRequest;
+import com.lqx.opera.common.dto.RegisterRequest;
+import com.lqx.opera.entity.PerformanceEvent;
+import com.lqx.opera.service.PerformanceEventService;
+import com.lqx.opera.utils.JwtUtils;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(classes = LiuqinOperaApplication.class)
+@SpringBootTest(classes = LqxOperaApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL",

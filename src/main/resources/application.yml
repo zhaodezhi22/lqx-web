@@ -9,6 +9,9 @@ spring:
 jwt:
   secret: "ChangeThisSecretToAStrongOne123456"
   expire-minutes: 120
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
@@ -23,5 +26,4 @@ server:
 
 logging:
   level:
-    com.liuqin.opera.mapper: debug
     com.lqx.opera.mapper: debug

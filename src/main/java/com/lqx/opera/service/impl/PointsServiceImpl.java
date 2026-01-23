@@ -21,13 +21,13 @@ public class PointsServiceImpl extends ServiceImpl<PointsLogMapper, PointsLog> i
         log.setUserId(userId);
         log.setChangePoint(points);
         log.setReason(reason);
-        // 如果没有配置自动填充或需要手动设置时间，可以保留下面这行；
+        // 如果没有配置自动填充或需要手动设置时间，可以保留下面这行。
         // 实体类配置了 @TableField(fill = FieldFill.INSERT)，前提是 MybatisPlusConfig 中配置了 MetaObjectHandler
-        // 这里为了保险起见，如果自动填充未生效，手动 set 一下也无妨，或者依赖数据库默认值
-        // 根据题目要求，使用 @TableField 自动填充，但通常这需要额外配置类。
-        // 为了确保功能可用，我这里不手动 set createdTime，假设 Handler 已存在或数据库有默认值
-        // 如果测试发现时间为空，则需要添加 MetaObjectHandler。
-        // 鉴于用户只让我实现 Service，我先不改 Config。
+        // 这里为了保险起见，如果自动填充未生效，手动set 一下也无妨，或者依赖数据库默认值
+        // 根据题目要求，使用@TableField 自动填充，但通常这需要额外配置类。
+        // 为了确保功能可用，我这里不手动set createdTime，假设Handler 已存在或数据库有默认值
+        // 如果测试发现时间为空，则需要添加MetaObjectHandler。
+        // 鉴于用户只让我实现Service，我先不动Config。
         this.save(log);
     }
 

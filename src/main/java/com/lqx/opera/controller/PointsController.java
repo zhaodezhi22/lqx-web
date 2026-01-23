@@ -1,7 +1,7 @@
 package com.lqx.opera.controller;
 
-import com.liuqin.opera.common.Result;
-import com.lqx.opera.dto.CheckInRequest;
+import com.lqx.opera.common.Result;
+import com.lqx.opera.common.dto.CheckInRequest;
 import com.lqx.opera.entity.PointsLog;
 import com.lqx.opera.service.PointsService;
 import org.springframework.beans.factory.annotation.Autowired;
