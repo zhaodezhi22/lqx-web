@@ -39,6 +39,54 @@ public class MallOrderController {
         this.productService = productService;
     }
 
+    @PostMapping("/refund/apply/{id}")
+    @RequireRole({0, 1, 2, 3})
+    public Result<Boolean> applyRefund(@PathVariable Long id, HttpServletRequest request) {
+        Object userIdObj = request.getAttribute("userId");
+        if (userIdObj == null) {
+            return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
+        }
+        Long userId;
+        if (userIdObj instanceof Number) {
+            userId = ((Number) userIdObj).longValue();
+        } else {
+            userId = Long.parseLong(userIdObj.toString());
+        }
+
+        try {
+            boolean ok = mallOrderService.applyRefund(id, userId);
+            return ok ? Result.success(true) : Result.fail("申请失败");
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    @PostMapping("/refund/audit/{id}")
+    @RequireRole({2, 3}) // Admin/Reviewer
+    public Result<Boolean> auditRefund(@PathVariable Long id, @RequestParam Boolean pass) {
+        try {
+            boolean ok = mallOrderService.auditRefund(id, pass);
+            return ok ? Result.success(true) : Result.fail("审核失败");
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    @GetMapping("/orders")
+    @RequireRole({2, 3}) // Admin/Reviewer
+    public Result<List<MallOrder>> getOrders(@RequestParam(required = false) Integer status) {
+        try {
+            LambdaQueryWrapper<MallOrder> wrapper = new LambdaQueryWrapper<>();
+            if (status != null) {
+                wrapper.eq(MallOrder::getStatus, status);
+            }
+            wrapper.orderByDesc(MallOrder::getId); // Using new ID field
+            return Result.success(mallOrderService.list(wrapper));
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     @PostMapping(value = {"/orders", "/order/create"})
     @RequireRole({0, 1, 2, 3})
     public Result<String> createOrder(@RequestBody CreateMallOrderRequest createReq, HttpServletRequest request) {

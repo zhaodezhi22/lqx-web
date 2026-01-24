@@ -8,5 +8,15 @@ import java.util.List;
 
 public interface MallOrderService extends IService<MallOrder> {
     MallOrder createOrder(Long userId, List<CreateMallOrderItem> items);
+
+    /**
+     * 申请退款
+     */
+    boolean applyRefund(Long orderId, Long userId);
+
+    /**
+     * 审核退款
+     */
+    boolean auditRefund(Long orderId, boolean pass);
 }
 

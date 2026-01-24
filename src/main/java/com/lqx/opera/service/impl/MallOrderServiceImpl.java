@@ -80,5 +80,53 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         
         return order;
     }
+
+    @Override
+    public boolean applyRefund(Long orderId, Long userId) {
+        MallOrder order = this.getById(orderId);
+        if (order == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        if (!order.getUserId().equals(userId)) {
+            throw new RuntimeException("无权操作此订单");
+        }
+        if (order.getStatus() != 1) {
+            throw new RuntimeException("当前状态无法申请退款");
+        }
+        order.setStatus(4); // 4-Refund Pending
+        return this.updateById(order);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean auditRefund(Long orderId, boolean pass) {
+        MallOrder order = this.getById(orderId);
+        if (order == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        if (order.getStatus() != 4) {
+            throw new RuntimeException("订单不是待审核状态");
+        }
+
+        if (pass) {
+            // 通过：状态改为5-Refunded
+            // 恢复库存
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<MallOrderItem> query = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+            query.eq(MallOrderItem::getOrderId, order.getId());
+            List<MallOrderItem> items = mallOrderItemService.list(query);
+            for (MallOrderItem item : items) {
+                Product p = productService.getById(item.getProductId());
+                if (p != null) {
+                    p.setStock(p.getStock() + item.getQuantity());
+                    productService.updateById(p);
+                }
+            }
+            order.setStatus(5);
+        } else {
+            // 驳回：状态回退到1-Paid
+            order.setStatus(1);
+        }
+        return this.updateById(order);
+    }
 }
 

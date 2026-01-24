@@ -16,6 +16,7 @@ public class InheritorProfile implements Serializable {
     private Long userId;
     private String level;
     private String genre;
+    private Long masterId;
     private String masterName;
     private String artisticCareer;
     private String awards;

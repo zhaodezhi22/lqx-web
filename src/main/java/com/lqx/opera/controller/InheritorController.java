@@ -3,6 +3,7 @@ package com.lqx.opera.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.common.Result;
+import com.lqx.opera.common.dto.GraphResultDto;
 import com.lqx.opera.entity.InheritorProfile;
 import com.lqx.opera.entity.SysUser;
 import com.lqx.opera.service.InheritorProfileService;
@@ -67,6 +68,16 @@ public class InheritorController {
             if (items.size() >= (limit == null ? 8 : limit)) break;
         }
         return Result.success(items);
+    }
+
+    @GetMapping("/graph/all")
+    public Result<GraphResultDto> getGraphAll() {
+        return Result.success(inheritorProfileService.getLineageGraph(null));
+    }
+
+    @GetMapping("/graph/{id}")
+    public Result<GraphResultDto> getGraphById(@PathVariable Long id) {
+        return Result.success(inheritorProfileService.getLineageGraph(id));
     }
 
     public static class SpotlightItem {
