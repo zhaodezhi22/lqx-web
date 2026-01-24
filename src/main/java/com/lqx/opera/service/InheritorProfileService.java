@@ -11,5 +11,12 @@ public interface InheritorProfileService extends IService<InheritorProfile> {
      * @return 节点和连线数据
      */
     GraphResultDto getLineageGraph(Long rootId);
+
+    /**
+     * 获取按等级排序的传承人列表
+     * 排序规则：国家级 > 省级 > 市级 > 其他
+     * @return 排序后的列表
+     */
+    java.util.List<InheritorProfile> getListSortedByLevel();
 }
 

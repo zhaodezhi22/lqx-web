@@ -27,13 +27,11 @@ public class InheritorController {
 
     @GetMapping("/featured")
     public Result<java.util.List<SpotlightItem>> featured(@RequestParam(required = false, defaultValue = "4") Integer limit) {
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<InheritorProfile> wrapper =
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-        wrapper.eq(InheritorProfile::getVerifyStatus, 1)
-                .orderByDesc(InheritorProfile::getId);
-        com.baomidou.mybatisplus.extension.plugins.pagination.Page<InheritorProfile> page =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, limit == null ? 4 : limit);
-        java.util.List<InheritorProfile> profiles = inheritorProfileService.page(page, wrapper).getRecords();
+        java.util.List<InheritorProfile> all = inheritorProfileService.getListSortedByLevel();
+        int max = limit == null ? 4 : limit;
+        if (max > all.size()) max = all.size();
+        java.util.List<InheritorProfile> profiles = all.subList(0, max);
+        
         java.util.List<SpotlightItem> items = new java.util.ArrayList<>();
         for (InheritorProfile p : profiles) {
             SysUser user = sysUserService.getById(p.getUserId());
@@ -50,11 +48,11 @@ public class InheritorController {
 
     @GetMapping("/spotlight")
     public Result<java.util.List<SpotlightItem>> spotlight(@RequestParam(required = false, defaultValue = "8") Integer limit) {
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<InheritorProfile> wrapper =
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-        wrapper.eq(InheritorProfile::getVerifyStatus, 1)
-                .orderByDesc(InheritorProfile::getId);
-        java.util.List<InheritorProfile> profiles = inheritorProfileService.list(wrapper);
+        java.util.List<InheritorProfile> all = inheritorProfileService.getListSortedByLevel();
+        int max = limit == null ? 8 : limit;
+        if (max > all.size()) max = all.size();
+        java.util.List<InheritorProfile> profiles = all.subList(0, max);
+
         java.util.List<SpotlightItem> items = new java.util.ArrayList<>();
         for (InheritorProfile p : profiles) {
             SysUser user = sysUserService.getById(p.getUserId());
@@ -65,7 +63,23 @@ public class InheritorController {
             item.setAvatar(user.getAvatar());
             item.setLevel(p.getLevel());
             items.add(item);
-            if (items.size() >= (limit == null ? 8 : limit)) break;
+        }
+        return Result.success(items);
+    }
+
+    @GetMapping("/list")
+    public Result<java.util.List<SpotlightItem>> list() {
+        java.util.List<InheritorProfile> profiles = inheritorProfileService.getListSortedByLevel();
+        java.util.List<SpotlightItem> items = new java.util.ArrayList<>();
+        for (InheritorProfile p : profiles) {
+            SysUser user = sysUserService.getById(p.getUserId());
+            if (user == null) continue;
+            SpotlightItem item = new SpotlightItem();
+            item.setUserId(user.getUserId());
+            item.setName(user.getRealName() != null ? user.getRealName() : user.getUsername());
+            item.setAvatar(user.getAvatar());
+            item.setLevel(p.getLevel());
+            items.add(item);
         }
         return Result.success(items);
     }

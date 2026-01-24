@@ -5,8 +5,10 @@ import com.lqx.opera.common.Result;
 import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.common.dto.CreateMallOrderRequest;
 import com.lqx.opera.common.dto.MallOrderDto;
+import com.lqx.opera.common.dto.MallOrderItemDto;
 import com.lqx.opera.entity.MallOrder;
 import com.lqx.opera.entity.MallOrderItem;
+import com.lqx.opera.entity.Product;
 import com.lqx.opera.service.MallOrderItemService;
 import com.lqx.opera.service.MallOrderService;
 import com.lqx.opera.service.ProductService;
@@ -19,8 +21,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -154,6 +155,19 @@ public class MallOrderController {
             itemWrapper.in(MallOrderItem::getOrderId, orderIds);
             List<MallOrderItem> allItems = mallOrderItemService.list(itemWrapper);
 
+            // Collect all product IDs to fetch images
+            Set<Long> productIds = allItems.stream()
+                .map(MallOrderItem::getProductId)
+                .collect(Collectors.toSet());
+            
+            Map<Long, String> productImageMap = new HashMap<>();
+            if (!productIds.isEmpty()) {
+                List<Product> products = productService.listByIds(productIds);
+                for (Product p : products) {
+                    productImageMap.put(p.getProductId(), p.getMainImage());
+                }
+            }
+
             // 4. Map to DTO
             DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             List<MallOrderDto> dtos = orders.stream().map(order -> {
@@ -196,8 +210,14 @@ public class MallOrderController {
                 }
                 
                 // Filter items for this order
-                List<MallOrderItem> myItems = allItems.stream()
+                List<MallOrderItemDto> myItems = allItems.stream()
                         .filter(item -> item.getOrderId() != null && item.getOrderId().equals(order.getId()))
+                        .map(item -> {
+                            MallOrderItemDto itemDto = new MallOrderItemDto();
+                            BeanUtils.copyProperties(item, itemDto);
+                            itemDto.setProductImage(productImageMap.get(item.getProductId()));
+                            return itemDto;
+                        })
                         .collect(Collectors.toList());
                 dto.setItems(myItems);
                 

@@ -24,6 +24,13 @@ public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMap
     }
 
     @Override
+    public List<InheritorProfile> getListSortedByLevel() {
+        return this.list(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<InheritorProfile>()
+                .eq("verify_status", 1)
+                .last("ORDER BY CASE level WHEN '国家级' THEN 1 WHEN '省级' THEN 2 WHEN '市级' THEN 3 ELSE 4 END ASC, id DESC"));
+    }
+
+    @Override
     public GraphResultDto getLineageGraph(Long rootId) {
         // 1. 查询所有审核通过的传承人
         List<InheritorProfile> allProfiles = this.lambdaQuery()
@@ -34,10 +41,16 @@ public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMap
             return new GraphResultDto(Collections.emptyList(), Collections.emptyList());
         }
 
-        // 2. 如果指定了根节点，则筛选该节点及其所有后代
+        // 2. 如果指定了根节点，则筛选该节点及其所有后代 + 祖先
         List<InheritorProfile> targetProfiles;
         if (rootId != null) {
-            targetProfiles = findDescendants(rootId, allProfiles);
+            List<InheritorProfile> descendants = findDescendants(rootId, allProfiles);
+            List<InheritorProfile> ancestors = findAncestors(rootId, allProfiles);
+            
+            Set<InheritorProfile> merged = new HashSet<>();
+            merged.addAll(descendants);
+            merged.addAll(ancestors);
+            targetProfiles = new ArrayList<>(merged);
         } else {
             targetProfiles = allProfiles;
         }
@@ -130,6 +143,30 @@ public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMap
             }
         }
 
+        return result;
+    }
+
+    private List<InheritorProfile> findAncestors(Long rootId, List<InheritorProfile> allProfiles) {
+        Map<Long, InheritorProfile> profileMap = allProfiles.stream()
+                .collect(Collectors.toMap(InheritorProfile::getId, p -> p));
+
+        List<InheritorProfile> result = new ArrayList<>();
+        InheritorProfile current = profileMap.get(rootId);
+        
+        // 向上追溯
+        while (current != null) {
+            result.add(current);
+            if (current.getMasterId() == null) {
+                break;
+            }
+            // 防止环状依赖导致的死循环
+            Long masterId = current.getMasterId();
+            // 如果已经包含该师父(环)，则停止
+            if (result.stream().anyMatch(p -> p.getId().equals(masterId))) {
+                break;
+            }
+            current = profileMap.get(masterId);
+        }
         return result;
     }
 }
