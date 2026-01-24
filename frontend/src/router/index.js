@@ -25,6 +25,7 @@ const routes = [
       { path: 'contact', name: 'Contact', component: () => import('../views/Contact.vue') },
       { path: 'privacy', name: 'Privacy', component: () => import('../views/Privacy.vue') },
       { path: 'community', name: 'Community', component: () => import('../views/CommunityIndex.vue') },
+      { path: 'community/detail/:id', name: 'CommunityDetail', component: () => import('../views/CommunityDetail.vue') },
       { path: 'profile', name: 'UserProfile', component: () => import('../views/UserProfile.vue') },
     ]
   },

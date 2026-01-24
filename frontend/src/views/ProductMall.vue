@@ -8,14 +8,22 @@
     </div>
     <el-row :gutter="16">
       <el-col v-for="item in products" :key="item.productId" :xs="24" :sm="12" :md="8" :lg="6">
-        <el-card class="product-card" shadow="hover">
-          <img class="cover" :src="item.mainImage || placeholder" alt="cover" />
-          <div class="title">{{ item.name }}</div>
-          <div class="price">¥ {{ item.price }}</div>
-          <el-button type="primary" size="small" @click="addToCart(item)">加入购物车</el-button>
+        <el-card class="product-card" shadow="hover" :body-style="{ padding: '0px' }">
+          <div class="card-content" @click="openDetail(item)">
+            <img class="cover" :src="item.mainImage || placeholder" alt="cover" />
+            <div class="info">
+              <div class="title">{{ item.name }}</div>
+              <div class="price">¥ {{ item.price }}</div>
+            </div>
+          </div>
+          <div class="actions">
+             <el-button type="primary" size="small" @click.stop="addToCart(item)">加入购物车</el-button>
+          </div>
         </el-card>
       </el-col>
     </el-row>
+
+    <ProductDetailModal v-model:visible="detailVisible" :product-id="currentProductId" />
 
     <el-drawer v-model="drawer" title="我的购物车" size="400px">
       <div v-if="cart.items.length === 0">购物车是空的</div>
@@ -43,12 +51,16 @@ import { ElMessage } from 'element-plus'
 import { ShoppingCart, Delete } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useCartStore } from '../stores/cart'
+import ProductDetailModal from '../components/ProductDetailModal.vue'
 
 const router = useRouter()
 const products = ref([])
 const placeholder = 'https://via.placeholder.com/300x180?text=Product'
 const cart = useCartStore()
 const drawer = ref(false)
+
+const detailVisible = ref(false)
+const currentProductId = ref(null)
 
 const fetchList = async () => {
   try {
@@ -57,6 +69,11 @@ const fetchList = async () => {
   } catch (e) {
     ElMessage.error('加载商品失败')
   }
+}
+
+const openDetail = (item) => {
+  currentProductId.value = item.productId
+  detailVisible.value = true
 }
 
 const addToCart = (item) => {
@@ -106,22 +123,40 @@ onMounted(fetchList)
 }
 .product-card {
   margin-bottom: 16px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.product-card:hover {
+  transform: translateY(-5px);
+}
+.card-content {
+  padding-bottom: 10px;
 }
 .cover {
   width: 100%;
   height: 180px;
   object-fit: cover;
-  border-radius: 4px;
-  margin-bottom: 8px;
-  background: #f5f7fa;
+  display: block;
+}
+.info {
+  padding: 14px;
 }
 .title {
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .price {
   color: #f56c6c;
-  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: bold;
+}
+.actions {
+  padding: 0 14px 14px;
+  text-align: right;
 }
 .cart-item {
   display: flex;

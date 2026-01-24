@@ -32,39 +32,61 @@
         <el-card class="content-card">
           <el-tabs v-model="activeTab">
             <el-tab-pane label="我的订单" name="orders">
-              <el-table :data="orders" v-loading="loading" style="width: 100%">
-                <!-- 隐藏订单ID列 -->
-                <!-- <el-table-column prop="orderId" label="订单ID" width="90" /> -->
-                <el-table-column prop="orderNo" label="订单编号" />
-                <el-table-column prop="createTime" label="下单时间" width="180" />
-                <el-table-column label="商品信息" min-width="200">
+              <el-table :data="orders" v-loading="loading" style="width: 100%" class="custom-table">
+                <el-table-column label="订单信息" width="220">
                   <template #default="{ row }">
-                    <div v-for="item in row.items" :key="item.id" class="order-item-link">
-                      <el-link type="primary" @click="$router.push(`/mall/${item.productId}`)">
-                        {{ item.productName }} x {{ item.quantity }}
-                      </el-link>
+                    <div class="order-info-cell">
+                      <div class="order-no">{{ row.orderNo }}</div>
+                      <div class="create-time">{{ row.createTime }}</div>
                     </div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="totalAmount" label="金额(¥)" width="120" />
-                <el-table-column label="状态" width="120">
+                
+                <el-table-column label="商品" min-width="280">
                   <template #default="{ row }">
-                    <el-tag :type="statusTagType(row.status)">{{ statusText(row.status) }}</el-tag>
+                    <div v-for="item in row.items" :key="item.id" class="product-item-flex" @click="openDetail(item.productId)">
+                      <el-image :src="item.productImage" class="product-thumb" fit="cover">
+                         <template #error>
+                           <div class="image-slot"><el-icon><Picture /></el-icon></div>
+                         </template>
+                      </el-image>
+                      <div class="product-meta">
+                        <div class="product-name">{{ item.productName }}</div>
+                        <div class="product-qty">x {{ item.quantity }}</div>
+                      </div>
+                    </div>
                   </template>
                 </el-table-column>
-                <!-- <el-table-column prop="payTime" label="支付时间" width="180" /> -->
-                <el-table-column prop="shipTime" label="发货时间" width="180" />
-                <el-table-column prop="logisticsNo" label="物流单号" />
-                <el-table-column label="操作" width="150" fixed="right">
+
+                <el-table-column prop="totalAmount" label="实付" width="100">
+                   <template #default="{ row }">
+                     <span class="price-text">¥{{ row.totalAmount }}</span>
+                   </template>
+                </el-table-column>
+
+                <el-table-column label="状态" width="100">
                   <template #default="{ row }">
-                    <el-button 
-                      v-if="row.status === 1" 
-                      link 
-                      type="danger" 
-                      @click="handleMallRefund(row)"
-                    >
-                      申请退款
-                    </el-button>
+                    <el-tag :type="statusTagType(row.status)" size="small" effect="light" round>{{ statusText(row.status) }}</el-tag>
+                  </template>
+                </el-table-column>
+
+                <el-table-column label="操作" width="100" fixed="right">
+                  <template #default="{ row }">
+                    <el-dropdown trigger="click">
+                      <span class="el-dropdown-link">
+                        更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
+                      </span>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item v-if="row.status === 1" @click="handleMallRefund(row)">
+                            <span class="text-gray">申请退款</span>
+                          </el-dropdown-item>
+                           <el-dropdown-item v-if="row.status >= 2">
+                            <span class="text-gray">查看物流</span>
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
                   </template>
                 </el-table-column>
               </el-table>
@@ -122,6 +144,7 @@
         </el-card>
       </el-col>
     </el-row>
+    <ProductDetailModal v-model:visible="detailVisible" :product-id="currentProductId" />
   </div>
 </template>
 
@@ -130,7 +153,8 @@ import { ref, onMounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
-import { User, Phone } from '@element-plus/icons-vue'
+import { User, Phone, ArrowDown, Picture } from '@element-plus/icons-vue'
+import ProductDetailModal from '../components/ProductDetailModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -143,8 +167,16 @@ const user = reactive({
   phone: ''
 })
 
+const detailVisible = ref(false)
+const currentProductId = ref(null)
+
 const orders = ref([])
 const loading = ref(false)
+
+const openDetail = (productId) => {
+  currentProductId.value = productId
+  detailVisible.value = true
+}
 
 const statusText = (s) => {
   switch (s) {
@@ -336,5 +368,79 @@ watch(activeTab, (val) => {
 }
 .content-card {
   min-height: 500px;
+}
+.order-info-cell {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.5;
+}
+.order-no {
+  font-weight: 500;
+  color: #303133;
+  font-size: 13px;
+}
+.create-time {
+  font-size: 12px;
+  color: #909399;
+}
+.product-item-flex {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.product-item-flex:hover {
+  opacity: 0.8;
+}
+.product-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  background: #f5f7fa;
+  flex-shrink: 0;
+  border: 1px solid #ebeef5;
+}
+.image-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  color: #dcdfe6;
+}
+.product-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.product-name {
+  font-size: 13px;
+  color: #303133;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-qty {
+  font-size: 12px;
+  color: #909399;
+}
+.price-text {
+  font-weight: 600;
+  color: #303133;
+}
+.el-dropdown-link {
+  cursor: pointer;
+  color: #409EFF;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+}
+.text-gray {
+  color: #606266;
 }
 </style>
