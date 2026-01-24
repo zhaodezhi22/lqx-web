@@ -19,11 +19,12 @@ const routes = [
       { path: 'events/:id', name: 'EventDetail', component: () => import('../views/EventDetail.vue') },
       { path: 'inheritors', name: 'InheritorList', component: () => import('../views/InheritorList.vue') },
       { path: 'inheritor/apply', name: 'InheritorApply', component: () => import('../views/InheritorApply.vue') },
+      { path: 'inheritor/graph', name: 'InheritorGraph', component: () => import('../views/InheritorGraph.vue') },
       { path: 'inheritor/center', name: 'InheritorCenter', component: () => import('../views/InheritorCenter.vue') },
       { path: 'about', name: 'About', component: () => import('../views/About.vue') },
       { path: 'contact', name: 'Contact', component: () => import('../views/Contact.vue') },
       { path: 'privacy', name: 'Privacy', component: () => import('../views/Privacy.vue') },
-      { path: 'community', name: 'Community', component: () => import('../views/Community.vue') },
+      { path: 'community', name: 'Community', component: () => import('../views/CommunityIndex.vue') },
       { path: 'profile', name: 'UserProfile', component: () => import('../views/UserProfile.vue') },
     ]
   },

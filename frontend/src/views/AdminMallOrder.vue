@@ -8,12 +8,14 @@
              <el-radio-button :label="null">全部</el-radio-button>
              <el-radio-button :label="1">待发货</el-radio-button>
              <el-radio-button :label="2">已发货</el-radio-button>
+             <el-radio-button :label="4">退款待审</el-radio-button>
+             <el-radio-button :label="5">已退款</el-radio-button>
            </el-radio-group>
         </div>
       </div>
       
       <el-table :data="list" style="width: 100%" v-loading="loading">
-        <el-table-column prop="orderId" label="ID" width="80" />
+        <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="orderNo" label="订单编号" width="180" />
         <el-table-column prop="userId" label="用户ID" width="100" />
         <el-table-column prop="totalAmount" label="金额" width="120" />
@@ -23,14 +25,18 @@
              <el-tag v-else-if="row.status === 1" type="primary">待发货</el-tag>
              <el-tag v-else-if="row.status === 2" type="success">已发货</el-tag>
              <el-tag v-else-if="row.status === 3" type="info">已完成</el-tag>
+             <el-tag v-else-if="row.status === 4" type="warning" effect="dark">退款审核中</el-tag>
+             <el-tag v-else-if="row.status === 5" type="info" effect="dark">已退款</el-tag>
              <el-tag v-else type="danger">已取消</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="logisticsNo" label="物流单号" />
-        <el-table-column prop="createdTime" label="下单时间" width="180" />
-        <el-table-column label="操作" width="150">
+        <el-table-column prop="createTime" label="下单时间" width="180" />
+        <el-table-column label="操作" width="200">
           <template #default="{ row }">
             <el-button v-if="row.status === 1" type="primary" size="small" @click="openShip(row)">发货</el-button>
+            <el-button v-if="row.status === 4" type="success" size="small" @click="auditRefund(row, true)">通过</el-button>
+            <el-button v-if="row.status === 4" type="danger" size="small" @click="auditRefund(row, false)">驳回</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -52,7 +58,7 @@
 
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 
 const list = ref([])
@@ -80,9 +86,29 @@ const fetchList = async () => {
 }
 
 const openShip = (row) => {
-  shipForm.orderId = row.orderId
+  shipForm.orderId = row.id
   shipForm.logisticsNo = ''
   shipDialogVisible.value = true
+}
+
+const auditRefund = (row, pass) => {
+  ElMessageBox.confirm(
+    `确定要${pass ? '通过' : '驳回'}退款申请吗？`,
+    '审核确认',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: pass ? 'warning' : 'info',
+    }
+  ).then(async () => {
+    try {
+      await request.post(`/mall/refund/audit/${row.id}?pass=${pass}`)
+      ElMessage.success('操作成功')
+      fetchList()
+    } catch (e) {
+      ElMessage.error('操作失败')
+    }
+  })
 }
 
 const confirmShip = async () => {

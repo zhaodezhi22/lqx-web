@@ -37,6 +37,15 @@
                 <!-- <el-table-column prop="orderId" label="订单ID" width="90" /> -->
                 <el-table-column prop="orderNo" label="订单编号" />
                 <el-table-column prop="createTime" label="下单时间" width="180" />
+                <el-table-column label="商品信息" min-width="200">
+                  <template #default="{ row }">
+                    <div v-for="item in row.items" :key="item.id" class="order-item-link">
+                      <el-link type="primary" @click="$router.push(`/mall/${item.productId}`)">
+                        {{ item.productName }} x {{ item.quantity }}
+                      </el-link>
+                    </div>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="totalAmount" label="金额(¥)" width="120" />
                 <el-table-column label="状态" width="120">
                   <template #default="{ row }">
@@ -46,6 +55,18 @@
                 <!-- <el-table-column prop="payTime" label="支付时间" width="180" /> -->
                 <el-table-column prop="shipTime" label="发货时间" width="180" />
                 <el-table-column prop="logisticsNo" label="物流单号" />
+                <el-table-column label="操作" width="150" fixed="right">
+                  <template #default="{ row }">
+                    <el-button 
+                      v-if="row.status === 1" 
+                      link 
+                      type="danger" 
+                      @click="handleMallRefund(row)"
+                    >
+                      申请退款
+                    </el-button>
+                  </template>
+                </el-table-column>
               </el-table>
               <div v-if="!loading && (!orders || orders.length === 0)" style="margin-top: 16px">
                 <el-empty description="暂无订单" />
@@ -53,24 +74,27 @@
             </el-tab-pane>
             <el-tab-pane label="我的票务" name="tickets">
               <el-table :data="tickets" v-loading="ticketsLoading" style="width: 100%">
-                <el-table-column prop="orderNo" label="订单编号" width="180" />
-                <el-table-column prop="seatInfo" label="座位" width="120" />
-                <el-table-column prop="price" label="票价" width="100" />
-                <el-table-column prop="createdTime" label="购票时间" width="180">
+                <el-table-column prop="eventTitle" label="演出名称" min-width="150" />
+                <el-table-column prop="showTime" label="演出时间" width="170">
                    <template #default="{ row }">
-                     {{ formatTime(row.createdTime) }}
+                     {{ formatTime(row.showTime) }}
                    </template>
                 </el-table-column>
+                <el-table-column prop="seatInfo" label="座位" width="100" />
+                <el-table-column prop="price" label="票价" width="80" />
                 <el-table-column label="状态" width="100">
                   <template #default="{ row }">
                     <el-tag type="success" v-if="row.status === 1">已支付</el-tag>
-                    <el-tag type="warning" v-else>待支付</el-tag>
+                    <el-tag type="warning" v-else-if="row.status === 0">待支付</el-tag>
+                    <el-tag type="info" v-else-if="row.status === 3">已退票</el-tag>
+                    <el-tag type="danger" v-else>已取消</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作">
+                <el-table-column label="操作" width="220">
                   <template #default="{ row }">
-                    <el-button link type="primary" v-if="row.status === 1">查看二维码</el-button>
-                    <el-button link type="primary" v-else>去支付</el-button>
+                    <el-button link type="primary" @click="$router.push(`/events/${row.eventId}`)">查看演出</el-button>
+                    <el-button link type="danger" v-if="row.status === 1" @click="handleRefund(row)">退票</el-button>
+                    <el-button link type="primary" v-if="row.status === 0">去支付</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -104,7 +128,7 @@
 <script setup>
 import { ref, onMounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
 import { User, Phone } from '@element-plus/icons-vue'
 
@@ -128,7 +152,8 @@ const statusText = (s) => {
     case 1: return '待发货'
     case 2: return '已发货'
     case 3: return '已完成'
-    case 4: return '已取消'
+    case 4: return '退款审核中'
+    case 5: return '已退款'
     default: return '未知'
   }
 }
@@ -138,7 +163,8 @@ const statusTagType = (s) => {
     case 1: return 'info'
     case 2: return 'primary'
     case 3: return 'success'
-    case 4: return 'danger'
+    case 4: return 'warning'
+    case 5: return 'info'
     default: return ''
   }
 }
@@ -149,9 +175,8 @@ const ticketsLoading = ref(false)
 const formatTime = (arr) => {
   if (!arr) return ''
   if (Array.isArray(arr)) {
-    // [2024, 1, 2, 12, 30, 0]
     const [y, m, d, h, min, s] = arr
-    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
   }
   return arr
 }
@@ -182,6 +207,58 @@ const fetchTickets = async () => {
   } finally {
     ticketsLoading.value = false
   }
+}
+
+const handleRefund = (row) => {
+  ElMessageBox.confirm(
+    '确定要申请退票吗？需要等待审核员审核。',
+    '退票申请',
+    {
+      confirmButtonText: '提交申请',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  )
+    .then(async () => {
+      try {
+        const res = await request.post(`/ticket/refund/${row.orderId}`)
+        if (res.code === 200) {
+          ElMessage.success('申请提交成功，请等待审核')
+          fetchTickets()
+        } else {
+          ElMessage.error(res.message || '申请失败')
+        }
+      } catch (e) {
+        ElMessage.error(e.response?.data?.message || '申请失败')
+      }
+    })
+    .catch(() => {})
+}
+
+const handleMallRefund = (row) => {
+  ElMessageBox.confirm(
+    '确定要申请取消订单并退款吗？需要等待审核员审核。',
+    '退款申请',
+    {
+      confirmButtonText: '提交申请',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  )
+    .then(async () => {
+      try {
+        const res = await request.post(`/mall/refund/apply/${row.id}`)
+        if (res.code === 200) {
+          ElMessage.success('申请提交成功')
+          fetchMyOrders()
+        } else {
+          ElMessage.error(res.message || '申请失败')
+        }
+      } catch (e) {
+        ElMessage.error(e.response?.data?.message || '申请失败')
+      }
+    })
+    .catch(() => {})
 }
 
 const saveProfile = async () => {
