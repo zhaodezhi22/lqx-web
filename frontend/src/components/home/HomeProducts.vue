@@ -44,7 +44,7 @@ const productsToShow = computed(() => {
 const fetchProducts = async () => {
   loading.value = true
   try {
-    const res = await request.get('/products')
+    const res = await request.get('/products', { params: { status: 1 } })
     products.value = res.data || []
   } finally {
     loading.value = false

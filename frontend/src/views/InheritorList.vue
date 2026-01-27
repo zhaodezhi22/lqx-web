@@ -77,10 +77,7 @@ const applyForm = reactive({
 const fetchInheritors = async () => {
   loading.value = true
   try {
-    // Using spotlight as list source for now
-    const res = await request.get('/inheritor/spotlight', {
-      params: { limit: 20 }
-    })
+    const res = await request.get('/inheritor/list')
     if (res.code === 200) {
       inheritors.value = res.data || []
     }
@@ -92,10 +89,8 @@ const fetchInheritors = async () => {
 }
 
 const goToDetail = (item) => {
-  // If we had a detail page:
-  // router.push(`/inheritors/${item.userId}`)
-  // For now, just show graph
-  router.push('/inheritor/graph')
+  // Pass the inheritor ID to focus on their lineage
+  router.push({ path: '/inheritor/graph', query: { id: item.inheritorId } })
 }
 
 const openApply = (item) => {

@@ -64,7 +64,7 @@ const currentProductId = ref(null)
 
 const fetchList = async () => {
   try {
-    const res = await request.get('/products')
+    const res = await request.get('/products', { params: { status: 1 } })
     products.value = res.data || []
   } catch (e) {
     ElMessage.error('加载商品失败')

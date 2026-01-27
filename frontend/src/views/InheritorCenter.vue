@@ -11,7 +11,7 @@
               <el-input v-model="profileForm.level" disabled />
             </el-form-item>
             <el-form-item label="师承">
-              <el-input v-model="profileForm.masterName" />
+              <el-input v-model="profileForm.masterName" :disabled="!!profileForm.masterId" placeholder="未绑定师父，可手动填写" />
             </el-form-item>
             <el-form-item label="流派">
               <el-input v-model="profileForm.genre" />
@@ -59,6 +59,7 @@
           </el-col>
         </el-row>
       </el-tab-pane>
+
 
       <!-- 7. 授业管理 (Teaching) -->
       <el-tab-pane label="授业管理" name="teaching">
@@ -446,6 +447,7 @@ import { reactive, ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import LineageTree from '../components/LineageTree.vue'
 
 const activeTab = ref('profile')
 
@@ -480,6 +482,8 @@ const getResourceTypeLabel = (type) => {
 // --- 1. Profile ---
 const profileForm = reactive({
   id: null,
+  userId: null,
+  masterId: null,
   level: '',
   masterName: '',
   genre: '',
@@ -785,10 +789,23 @@ const submitActivity = async () => {
 
 // --- 6. Sales ---
 const salesStats = reactive({
-    totalSales: '1200.00',
-    orderCount: 15,
-    productCount: 3
+    totalSales: '0.00',
+    orderCount: 0,
+    productCount: 0
 })
+
+const fetchSalesStats = async () => {
+    try {
+        const res = await request.get('/products/my-sales-stats')
+        if (res.data) {
+            salesStats.totalSales = res.data.totalSales || '0.00'
+            salesStats.orderCount = res.data.orderCount || 0
+            salesStats.productCount = res.data.productCount || 0
+        }
+    } catch (e) {
+        console.error('Failed to fetch sales stats', e)
+    }
+}
 
 // --- 7. Teaching (授业) ---
 const tasksList = ref([])
@@ -932,6 +949,8 @@ watch(activeTab, (val) => {
         fetchProducts()
     } else if (val === 'activity') {
         fetchActivities()
+    } else if (val === 'sales') {
+        fetchSalesStats()
     }
 })
 
@@ -951,6 +970,7 @@ onMounted(() => {
     fetchResources()
     fetchProducts()
     fetchActivities()
+    fetchSalesStats()
 })
 </script>
 

@@ -4,7 +4,7 @@
       <el-col :span="6" class="profile-sidebar">
         <el-card class="user-card">
           <div class="avatar-section">
-            <el-avatar :size="100" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
+            <el-avatar :size="100" :src="user.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
             <div class="role-badge" v-if="user.role === 1">
               <el-tag type="warning" effect="dark">非遗传承人</el-tag>
             </div>
@@ -127,6 +127,23 @@
             </el-tab-pane>
             <el-tab-pane label="基本资料" name="profile">
               <el-form label-width="100px" style="max-width: 500px">
+                <el-form-item label="头像">
+                  <el-upload
+                    class="avatar-uploader"
+                    action="/api/file/upload"
+                    :show-file-list="false"
+                    :on-success="handleAvatarSuccess"
+                    :before-upload="beforeAvatarUpload"
+                  >
+                    <img v-if="user.avatar" :src="user.avatar" class="avatar-edit" />
+                    <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+                    <template #tip>
+                      <div class="el-upload__tip">
+                        点击图片上传，建议尺寸 200x200
+                      </div>
+                    </template>
+                  </el-upload>
+                </el-form-item>
                 <el-form-item label="昵称">
                   <el-input v-model="user.username" disabled />
                 </el-form-item>
@@ -141,7 +158,7 @@
                 </el-form-item>
               </el-form>
             </el-tab-pane>
-            <el-tab-pane label="我的师门" name="apprenticeship">
+            <el-tab-pane v-if="hasMaster" label="我的师门" name="apprenticeship">
               <div class="apprenticeship-container">
                 <el-table :data="assignments" v-loading="assignmentsLoading" style="width: 100%">
                   <el-table-column prop="taskTitle" label="作业题目" min-width="150" />
@@ -213,7 +230,7 @@ import { ref, onMounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
-import { User, Phone, ArrowDown, Picture } from '@element-plus/icons-vue'
+import { User, Phone, ArrowDown, Picture, Camera, Plus } from '@element-plus/icons-vue'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 
 const route = useRoute()
@@ -224,7 +241,8 @@ const user = reactive({
   username: '',
   role: 0,
   realName: '',
-  phone: ''
+  phone: '',
+  avatar: ''
 })
 
 const detailVisible = ref(false)
@@ -266,6 +284,7 @@ const ticketsLoading = ref(false)
 
 const assignments = ref([])
 const assignmentsLoading = ref(false)
+const hasMaster = ref(false)
 const submitDialogVisible = ref(false)
 const submitForm = reactive({
   assignmentId: null,
@@ -310,6 +329,22 @@ const fetchTickets = async () => {
     ElMessage.error('加载票务失败')
   } finally {
     ticketsLoading.value = false
+  }
+}
+
+const fetchMyMaster = async () => {
+  try {
+    const res = await request.get('/master/apprentice/my-master')
+    if (res.code === 200 && res.data) {
+      hasMaster.value = true
+    } else {
+      hasMaster.value = false
+      if (activeTab.value === 'apprenticeship') {
+        activeTab.value = 'orders'
+      }
+    }
+  } catch (e) {
+    hasMaster.value = false
   }
 }
 
@@ -412,6 +447,28 @@ const handleMallRefund = (row) => {
     .catch(() => {})
 }
 
+const handleAvatarSuccess = (res) => {
+  if (res.code === 200) {
+    user.avatar = res.data
+    ElMessage.success('头像上传成功，请点击保存修改')
+  } else {
+    ElMessage.error('头像上传失败')
+  }
+}
+
+const beforeAvatarUpload = (file) => {
+  const isJPG = file.type === 'image/jpeg' || file.type === 'image/png'
+  const isLt2M = file.size / 1024 / 1024 < 2
+
+  if (!isJPG) {
+    ElMessage.error('上传头像图片只能是 JPG/PNG 格式!')
+  }
+  if (!isLt2M) {
+    ElMessage.error('上传头像图片大小不能超过 2MB!')
+  }
+  return isJPG && isLt2M
+}
+
 const saveProfile = async () => {
   if (!user.userId) {
     ElMessage.error('用户信息丢失，请重新登录')
@@ -420,7 +477,8 @@ const saveProfile = async () => {
   try {
     await request.put(`/users/${user.userId}`, {
       realName: user.realName,
-      phone: user.phone
+      phone: user.phone,
+      avatar: user.avatar
     })
     ElMessage.success('保存成功')
     // 更新本地缓存
@@ -431,6 +489,7 @@ const saveProfile = async () => {
 }
 
 onMounted(() => {
+  fetchMyMaster()
   const userStr = localStorage.getItem('user')
   if (userStr) {
     Object.assign(user, JSON.parse(userStr))
@@ -565,5 +624,52 @@ watch(activeTab, (val) => {
 }
 .text-gray {
   color: #606266;
+}
+.avatar-wrapper {
+  position: relative;
+  cursor: pointer;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.avatar-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.avatar-wrapper:hover .avatar-mask {
+  opacity: 1;
+}
+
+.avatar-edit {
+  width: 100px;
+  height: 100px;
+  display: block;
+  border-radius: 4px;
+}
+.avatar-uploader-icon {
+  font-size: 28px;
+  color: #8c939d;
+  width: 100px;
+  height: 100px;
+  text-align: center;
+  border: 1px dashed #d9d9d9;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+.avatar-uploader-icon:hover {
+  border-color: #409EFF;
 }
 </style>
