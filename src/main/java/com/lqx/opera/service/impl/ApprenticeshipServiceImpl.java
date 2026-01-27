@@ -40,6 +40,10 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             throw new RuntimeException("您已有待审核的申请，请勿重复提交");
         }
 
+        if (studentId.equals(masterId)) {
+            throw new RuntimeException("不能拜自己为师");
+        }
+
         // 2. 检查师父是否存在
         InheritorProfile masterProfile = inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
                 .eq(InheritorProfile::getUserId, masterId)
@@ -83,9 +87,39 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             SysUser mentor = sysUserService.getById(mentorId);
             String mentorName = (mentor != null && mentor.getRealName() != null) ? mentor.getRealName() : "未知师父";
 
+            // 获取师父档案以获取流派信息
+            InheritorProfile mentorProfile = inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
+                    .eq(InheritorProfile::getUserId, mentorId));
+            
+            Long mentorProfileId = mentorProfile != null ? mentorProfile.getId() : null;
+
             if (studentProfile != null) {
                 studentProfile.setMasterName(mentorName);
+                if (mentorProfileId != null) {
+                    studentProfile.setMasterId(mentorProfileId);
+                }
                 inheritorProfileService.updateById(studentProfile);
+            } else {
+                // 如果没有档案，自动创建传承人档案
+                studentProfile = new InheritorProfile();
+                studentProfile.setUserId(apply.getStudentId());
+                studentProfile.setVerifyStatus(1); // 直接认证通过
+                if (mentorProfileId != null) {
+                    studentProfile.setMasterId(mentorProfileId);
+                }
+                studentProfile.setMasterName(mentorName);
+                if (mentorProfile != null) {
+                    studentProfile.setGenre(mentorProfile.getGenre());
+                }
+                studentProfile.setLevel("县/区级"); // 默认为基础等级
+                inheritorProfileService.save(studentProfile);
+
+                // 更新用户角色为传承人
+                SysUser studentUser = sysUserService.getById(apply.getStudentId());
+                if (studentUser != null) {
+                    studentUser.setRole(1);
+                    sysUserService.updateById(studentUser);
+                }
             }
 
             // 自动发布社区动态
@@ -98,5 +132,24 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             apply.setStatus(2); // 拒绝
         }
         this.updateById(apply);
+    }
+
+    @Override
+    public InheritorProfile getMyMaster(Long studentId) {
+        // 查找已通过的拜师申请
+        ApprenticeshipApply apply = this.getOne(new LambdaQueryWrapper<ApprenticeshipApply>()
+                .eq(ApprenticeshipApply::getStudentId, studentId)
+                .eq(ApprenticeshipApply::getStatus, 1) // 1-已通过
+                .orderByDesc(ApprenticeshipApply::getId)
+                .last("LIMIT 1"));
+
+        if (apply == null) {
+            return null;
+        }
+
+        // 获取师父的档案
+        return inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
+                .eq(InheritorProfile::getUserId, apply.getMasterId())
+                .eq(InheritorProfile::getVerifyStatus, 1));
     }
 }

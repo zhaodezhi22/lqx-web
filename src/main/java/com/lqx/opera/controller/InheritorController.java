@@ -27,16 +27,14 @@ public class InheritorController {
 
     @GetMapping("/featured")
     public Result<java.util.List<SpotlightItem>> featured(@RequestParam(required = false, defaultValue = "4") Integer limit) {
-        java.util.List<InheritorProfile> all = inheritorProfileService.getListSortedByLevel();
-        int max = limit == null ? 4 : limit;
-        if (max > all.size()) max = all.size();
-        java.util.List<InheritorProfile> profiles = all.subList(0, max);
+        java.util.List<InheritorProfile> profiles = inheritorProfileService.getRecentList(limit);
         
         java.util.List<SpotlightItem> items = new java.util.ArrayList<>();
         for (InheritorProfile p : profiles) {
             SysUser user = sysUserService.getById(p.getUserId());
             if (user == null) continue;
             SpotlightItem item = new SpotlightItem();
+            item.setInheritorId(p.getId());
             item.setUserId(user.getUserId());
             item.setName(user.getRealName() != null ? user.getRealName() : user.getUsername());
             item.setAvatar(user.getAvatar());
@@ -58,6 +56,7 @@ public class InheritorController {
             SysUser user = sysUserService.getById(p.getUserId());
             if (user == null) continue;
             SpotlightItem item = new SpotlightItem();
+            item.setInheritorId(p.getId());
             item.setUserId(user.getUserId());
             item.setName(user.getRealName() != null ? user.getRealName() : user.getUsername());
             item.setAvatar(user.getAvatar());
@@ -75,6 +74,7 @@ public class InheritorController {
             SysUser user = sysUserService.getById(p.getUserId());
             if (user == null) continue;
             SpotlightItem item = new SpotlightItem();
+            item.setInheritorId(p.getId());
             item.setUserId(user.getUserId());
             item.setName(user.getRealName() != null ? user.getRealName() : user.getUsername());
             item.setAvatar(user.getAvatar());
@@ -94,11 +94,53 @@ public class InheritorController {
         return Result.success(inheritorProfileService.getLineageGraph(id));
     }
 
+    @GetMapping("/lineage/{id}")
+    public Result<com.lqx.opera.common.dto.LineageTreeNodeDto> getLineageTree(@PathVariable Long id) {
+        return Result.success(inheritorProfileService.getLineageTree(id));
+    }
+
+    @GetMapping("/masters")
+    public Result<List<java.util.Map<String, Object>>> searchMasters(@RequestParam String query) {
+        List<InheritorProfile> profiles = inheritorProfileService.searchVerifiedMasters(query);
+        List<java.util.Map<String, Object>> result = new java.util.ArrayList<>();
+        for (InheritorProfile p : profiles) {
+            SysUser u = sysUserService.getById(p.getUserId());
+            if (u != null) {
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("id", p.getId());
+                map.put("name", u.getRealName() != null ? u.getRealName() : u.getUsername());
+                map.put("level", p.getLevel());
+                result.add(map);
+            }
+        }
+        return Result.success(result);
+    }
+
+    /**
+     * 获取当前用户的申请状态
+     */
+    @GetMapping("/my-status")
+    public Result<InheritorProfile> getMyStatus(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
+        InheritorProfile profile = inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
+                .eq(InheritorProfile::getUserId, userId)
+                .last("LIMIT 1"));
+        
+        populateMasterName(profile);
+        
+        return Result.success(profile);
+    }
+
     public static class SpotlightItem {
+        private Long inheritorId;
         private Long userId;
         private String name;
         private String avatar;
         private String level;
+        public Long getInheritorId() { return inheritorId; }
+        public void setInheritorId(Long inheritorId) { this.inheritorId = inheritorId; }
         public Long getUserId() { return userId; }
         public void setUserId(Long userId) { this.userId = userId; }
         public String getName() { return name; }
@@ -117,25 +159,32 @@ public class InheritorController {
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
+
         InheritorProfile exist = inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
                 .eq(InheritorProfile::getUserId, userId));
         if (exist != null) {
+            if (exist.getVerifyStatus() != null && exist.getVerifyStatus() == 1) {
+                return Result.fail("您已是认证传承人，无需重复申请");
+            }
             profile.setId(exist.getId());
         }
         profile.setUserId(userId);
-        profile.setVerifyStatus(0);
+        profile.setVerifyStatus(0); // Reset to pending (if rejected or updating pending)
         boolean ok = inheritorProfileService.saveOrUpdate(profile);
         return ok ? Result.success(true) : Result.fail("提交失败");
     }
 
     /**
-     * 管理�?审核员查看待审核列表
+     * 管理?审核员查看待审核列表
      */
     @GetMapping("/pending")
     @RequireRole({2, 3})
     public Result<List<InheritorProfile>> pendingList(HttpServletRequest request) {
         List<InheritorProfile> list = inheritorProfileService.list(new LambdaQueryWrapper<InheritorProfile>()
                 .eq(InheritorProfile::getVerifyStatus, 0));
+        if (list != null) {
+            list.forEach(this::populateMasterName);
+        }
         return Result.success(list);
     }
 
@@ -176,6 +225,9 @@ public class InheritorController {
         if (userId == null) return Result.fail(401, "未登录");
         InheritorProfile profile = inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
                 .eq(InheritorProfile::getUserId, userId));
+        
+        populateMasterName(profile);
+        
         return Result.success(profile);
     }
 
@@ -194,5 +246,17 @@ public class InheritorController {
         
         return inheritorProfileService.updateById(profile) ? Result.success(true) : Result.fail("更新失败");
     }
-}
 
+    private void populateMasterName(InheritorProfile profile) {
+        if (profile != null && profile.getMasterId() != null) {
+            InheritorProfile masterProfile = inheritorProfileService.getById(profile.getMasterId());
+            if (masterProfile != null) {
+                SysUser masterUser = sysUserService.getById(masterProfile.getUserId());
+                if (masterUser != null) {
+                    String realName = masterUser.getRealName();
+                    profile.setMasterName((realName != null && !realName.isEmpty()) ? realName : masterUser.getUsername());
+                }
+            }
+        }
+    }
+}

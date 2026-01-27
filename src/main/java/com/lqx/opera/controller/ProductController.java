@@ -17,13 +17,22 @@ import java.util.List;
 public class ProductController {
 
     private final ProductService productService;
+    private final com.lqx.opera.service.MallOrderService mallOrderService;
+    private final com.lqx.opera.service.MallOrderItemService mallOrderItemService;
 
-    public ProductController(ProductService productService) {
+    public ProductController(ProductService productService,
+                             com.lqx.opera.service.MallOrderService mallOrderService,
+                             com.lqx.opera.service.MallOrderItemService mallOrderItemService) {
         this.productService = productService;
+        this.mallOrderService = mallOrderService;
+        this.mallOrderItemService = mallOrderItemService;
     }
 
     @GetMapping
-    public Result<List<Product>> listAll() {
+    public Result<List<Product>> listAll(@RequestParam(required = false) Integer status) {
+        if (status != null) {
+            return Result.success(productService.list(new LambdaQueryWrapper<Product>().eq(Product::getStatus, status)));
+        }
         return Result.success(productService.list());
     }
 
@@ -135,5 +144,79 @@ public class ProductController {
         return Result.success(productService.list(new LambdaQueryWrapper<Product>()
                 .eq(Product::getSellerId, userId)
                 .orderByDesc(Product::getCreatedTime)));
+    }
+
+    @GetMapping("/my-sales-stats")
+    @RequireRole(1)
+    public Result<SalesStatsDto> getMySalesStats(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
+        // 1. Get my products
+        List<Product> products = productService.list(new LambdaQueryWrapper<Product>()
+                .eq(Product::getSellerId, userId));
+        
+        SalesStatsDto stats = new SalesStatsDto();
+        // Count active products (status = 1)
+        long activeCount = products.stream().filter(p -> p.getStatus() != null && p.getStatus() == 1).count();
+        stats.setProductCount((int) activeCount);
+
+        if (products.isEmpty()) {
+            stats.setTotalSales(java.math.BigDecimal.ZERO);
+            stats.setOrderCount(0);
+            return Result.success(stats);
+        }
+
+        List<Long> productIds = products.stream().map(Product::getProductId).toList();
+
+        // 2. Get Order Items for these products
+        List<com.lqx.opera.entity.MallOrderItem> items = mallOrderItemService.list(
+                new LambdaQueryWrapper<com.lqx.opera.entity.MallOrderItem>()
+                        .in(com.lqx.opera.entity.MallOrderItem::getProductId, productIds));
+        
+        if (items.isEmpty()) {
+            stats.setTotalSales(java.math.BigDecimal.ZERO);
+            stats.setOrderCount(0);
+            return Result.success(stats);
+        }
+
+        // 3. Get corresponding orders to check status
+        List<Long> orderIds = items.stream().map(com.lqx.opera.entity.MallOrderItem::getOrderId).distinct().toList();
+        List<com.lqx.opera.entity.MallOrder> orders = mallOrderService.listByIds(orderIds);
+        
+        // Filter valid orders (Paid=1, Shipped=2, RefundPending=4)
+        java.util.Set<Long> validOrderIds = orders.stream()
+                .filter(o -> o.getStatus() != null && (o.getStatus() == 1 || o.getStatus() == 2 || o.getStatus() == 4))
+                .map(com.lqx.opera.entity.MallOrder::getId)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // 4. Calculate stats
+        java.math.BigDecimal totalSales = java.math.BigDecimal.ZERO;
+        long validOrderCount = 0;
+
+        // Iterate items to sum price, and count orders
+        // Note: validOrderCount is simply the size of validOrderIds intersected with orderIds from my items
+        // But an order might have multiple items from me.
+        // Requirement: "订单总数" (Order Count) usually means unique orders.
+        validOrderCount = validOrderIds.size();
+
+        for (com.lqx.opera.entity.MallOrderItem item : items) {
+            if (validOrderIds.contains(item.getOrderId())) {
+                java.math.BigDecimal amount = item.getPrice().multiply(java.math.BigDecimal.valueOf(item.getQuantity()));
+                totalSales = totalSales.add(amount);
+            }
+        }
+
+        stats.setTotalSales(totalSales);
+        stats.setOrderCount((int) validOrderCount);
+
+        return Result.success(stats);
+    }
+
+    @lombok.Data
+    public static class SalesStatsDto {
+        private java.math.BigDecimal totalSales;
+        private Integer orderCount;
+        private Integer productCount;
     }
 }

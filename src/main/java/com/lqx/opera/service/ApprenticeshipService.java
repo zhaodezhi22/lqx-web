@@ -20,4 +20,11 @@ public interface ApprenticeshipService extends IService<ApprenticeshipApply> {
      * @param pass 是否通过
      */
     void auditApply(Long applyId, Long mentorId, boolean pass);
+
+    /**
+     * 获取我的师父信息
+     * @param studentId 学生ID
+     * @return 师父的传承人档案（如果存在）
+     */
+    com.lqx.opera.entity.InheritorProfile getMyMaster(Long studentId);
 }
