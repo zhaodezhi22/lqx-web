@@ -33,7 +33,20 @@ public class TicketOrder implements Serializable {
     private BigDecimal price;
 
     @TableField("status")
-    private Integer status; // 0-待支付 1-已支付
+    private Integer status; // 0-待支付 1-已支付 2-已核销 3-已取消
+
+    @TableField("qr_code")
+    private String qrCode;
+
+    @TableField("verifier_id")
+    private Long verifierId;
+
+    @TableField("verify_time")
+    private LocalDateTime verifyTime;
+
+    @TableField("pay_time")
+    private LocalDateTime payTime;
+
     @TableField("created_time")
     private LocalDateTime createdTime;
 }

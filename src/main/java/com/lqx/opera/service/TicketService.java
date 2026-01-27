@@ -10,7 +10,12 @@ import java.util.List;
 public interface TicketService extends IService<TicketOrder> {
     boolean lockSeat(Long eventId, String seatId, Long userId);
     TicketOrder createTicketOrder(CreateTicketDTO dto, Long userId);
-    
+
+    /**
+     * 核销门票
+     */
+    void verifyTicket(String orderNo, Long verifierId);
+
     void cancelUnpaidOrders();
 
     /**

@@ -6,9 +6,11 @@ import com.lqx.opera.entity.MallOrder;
 import com.lqx.opera.entity.MallOrderItem;
 import com.lqx.opera.entity.Product;
 import com.lqx.opera.mapper.MallOrderMapper;
+import com.lqx.opera.mapper.PointsLogMapper;
 import com.lqx.opera.service.MallOrderItemService;
 import com.lqx.opera.service.MallOrderService;
 import com.lqx.opera.service.ProductService;
+import com.lqx.opera.service.SysUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,15 +25,22 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
 
     private final ProductService productService;
     private final MallOrderItemService mallOrderItemService;
+    private final SysUserService sysUserService;
+    private final PointsLogMapper pointsLogMapper;
 
-    public MallOrderServiceImpl(ProductService productService, MallOrderItemService mallOrderItemService) {
+    public MallOrderServiceImpl(ProductService productService, 
+                                MallOrderItemService mallOrderItemService,
+                                SysUserService sysUserService,
+                                PointsLogMapper pointsLogMapper) {
         this.productService = productService;
         this.mallOrderItemService = mallOrderItemService;
+        this.sysUserService = sysUserService;
+        this.pointsLogMapper = pointsLogMapper;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public MallOrder createOrder(Long userId, List<CreateMallOrderItem> items) {
+    public MallOrder createOrder(Long userId, List<CreateMallOrderItem> items, Integer usedPoints) {
         BigDecimal total = BigDecimal.ZERO;
         List<MallOrderItem> toSaveItems = new ArrayList<>();
 
@@ -64,10 +73,53 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
             toSaveItems.add(oi);
         }
 
+        // Calculate Points
+        BigDecimal discount = BigDecimal.ZERO;
+        if (usedPoints != null && usedPoints > 0) {
+            com.lqx.opera.entity.SysUser user = sysUserService.getById(userId);
+            if (user == null) throw new RuntimeException("用户不存在");
+            if (user.getCurrentPoints() == null || user.getCurrentPoints() < usedPoints) {
+                throw new RuntimeException("积分余额不足");
+            }
+            
+            // Assume 100 points = 1.00 Unit (Adjust rate as needed)
+            discount = new BigDecimal(usedPoints).divide(new BigDecimal(100), 2, java.math.RoundingMode.HALF_UP);
+            
+            if (discount.compareTo(total) > 0) {
+                // discount = total; // Optional: Cap discount at total amount?
+                // Or throw error if points exceed amount? Let's cap it or just allow it (0 pay).
+                // Let's simple check: cannot exceed total?
+                // For now, let's assume valid usedPoints input.
+                // Or better:
+                // if (discount.compareTo(total) > 0) discount = total; 
+                // But we must deduct correct points.
+                // Let's strict check:
+                if (discount.compareTo(total) > 0) {
+                    throw new RuntimeException("积分抵扣金额不能超过订单总额");
+                }
+            }
+            
+            // Deduct Points
+            user.setCurrentPoints(user.getCurrentPoints() - usedPoints);
+            sysUserService.updateById(user);
+            
+            // Log Points
+            com.lqx.opera.entity.PointsLog log = new com.lqx.opera.entity.PointsLog();
+            log.setUserId(userId);
+            log.setChangePoint(-usedPoints);
+            log.setReason("购物抵扣");
+            log.setCreatedTime(new java.util.Date()); // Use Date or LocalDateTime depending on entity
+            // PointsLog uses Date according to previous read.
+            pointsLogMapper.insert(log);
+        }
+
         MallOrder order = new MallOrder();
         order.setOrderNo("MORD" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 6));
         order.setUserId(userId);
         order.setTotalAmount(total);
+        order.setPointsDiscount(discount);
+        order.setUsedPoints(usedPoints != null ? usedPoints : 0);
+        order.setPayAmount(total.subtract(discount));
         order.setStatus(1); // 模拟支付成功 -> 已支付待发货
         order.setCreateTime(LocalDateTime.now());
         this.save(order);

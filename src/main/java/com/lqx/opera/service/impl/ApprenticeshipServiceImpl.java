@@ -13,6 +13,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.lqx.opera.common.dto.ApprenticeInfoDTO;
+import com.lqx.opera.entity.ApprenticeshipRelation;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMapper, ApprenticeshipApply> implements ApprenticeshipService {
@@ -20,13 +26,16 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
     private final InheritorProfileService inheritorProfileService;
     private final SysUserService sysUserService;
     private final com.lqx.opera.service.CommunityService communityService;
+    private final com.lqx.opera.mapper.ApprenticeshipRelationMapper apprenticeshipRelationMapper;
 
     public ApprenticeshipServiceImpl(InheritorProfileService inheritorProfileService, 
                                      SysUserService sysUserService,
-                                     com.lqx.opera.service.CommunityService communityService) {
+                                     com.lqx.opera.service.CommunityService communityService,
+                                     com.lqx.opera.mapper.ApprenticeshipRelationMapper apprenticeshipRelationMapper) {
         this.inheritorProfileService = inheritorProfileService;
         this.sysUserService = sysUserService;
         this.communityService = communityService;
+        this.apprenticeshipRelationMapper = apprenticeshipRelationMapper;
     }
 
     @Override
@@ -128,10 +137,78 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             String content = "恭喜 " + studentName + " 正式拜入 " + mentorName + " 大师门下，传承非遗文化！";
             // 假设使用系统账号或师父账号发布？这里使用师父账号发布
             communityService.createPost(mentorId, content, null);
+
+            // Create Apprenticeship Relation
+            com.lqx.opera.entity.ApprenticeshipRelation relation = new com.lqx.opera.entity.ApprenticeshipRelation();
+            relation.setMasterId(mentorId);
+            relation.setStudentId(apply.getStudentId());
+            relation.setRelationStatus(1); // 1-Teaching
+            relation.setCreateTime(LocalDateTime.now());
+            apprenticeshipRelationMapper.insert(relation);
+
+            // Update User Role to Apprentice (3) if they are Ordinary (0)
+            if (student != null && (student.getRole() == null || student.getRole() == 0)) {
+                student.setRole(3); // 3-Apprentice
+                sysUserService.updateById(student);
+            }
         } else {
             apply.setStatus(2); // 拒绝
         }
         this.updateById(apply);
+    }
+
+    @Override
+    public List<ApprenticeInfoDTO> getMyApprentices(Long masterId) {
+        // 1. Query Relations
+        List<ApprenticeshipRelation> relations = apprenticeshipRelationMapper.selectList(
+                new LambdaQueryWrapper<ApprenticeshipRelation>()
+                        .eq(ApprenticeshipRelation::getMasterId, masterId)
+                        .in(ApprenticeshipRelation::getRelationStatus, 1, 2) // Teaching or Graduated
+        );
+
+        if (relations.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 2. Collect Student IDs
+        List<Long> studentIds = relations.stream()
+                .map(ApprenticeshipRelation::getStudentId)
+                .collect(Collectors.toList());
+
+        // 3. Batch Query Users and Profiles
+        List<SysUser> users = sysUserService.listByIds(studentIds);
+        Map<Long, SysUser> userMap = users.stream()
+                .collect(Collectors.toMap(SysUser::getUserId, u -> u));
+
+        List<InheritorProfile> profiles = inheritorProfileService.list(
+                new LambdaQueryWrapper<InheritorProfile>()
+                        .in(InheritorProfile::getUserId, studentIds)
+        );
+        Map<Long, InheritorProfile> profileMap = profiles.stream()
+                .collect(Collectors.toMap(InheritorProfile::getUserId, p -> p));
+
+        // 4. Build DTOs
+        return relations.stream().map(relation -> {
+            ApprenticeInfoDTO dto = new ApprenticeInfoDTO();
+            Long sId = relation.getStudentId();
+            SysUser u = userMap.get(sId);
+            InheritorProfile p = profileMap.get(sId);
+
+            dto.setStudentId(sId);
+            dto.setRelationStatus(relation.getRelationStatus());
+            dto.setJoinTime(relation.getCreateTime());
+
+            if (u != null) {
+                dto.setUsername(u.getUsername());
+                dto.setRealName(u.getRealName());
+                dto.setPhone(u.getPhone());
+                dto.setAvatar(u.getAvatar());
+            }
+            if (p != null) {
+                dto.setLevel(p.getLevel());
+            }
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     @Override

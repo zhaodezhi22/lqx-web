@@ -24,6 +24,15 @@ public class MallOrder implements Serializable {
     @TableField("total_amount")
     private BigDecimal totalAmount;
 
+    @TableField("points_discount")
+    private BigDecimal pointsDiscount;
+
+    @TableField("pay_amount")
+    private BigDecimal payAmount;
+
+    @TableField("used_points")
+    private Integer usedPoints;
+
     @TableField("address_snapshot")
     private String addressSnapshot;
 

@@ -27,4 +27,11 @@ public interface ApprenticeshipService extends IService<ApprenticeshipApply> {
      * @return 师父的传承人档案（如果存在）
      */
     com.lqx.opera.entity.InheritorProfile getMyMaster(Long studentId);
+
+    /**
+     * 获取我的徒弟列表
+     * @param masterId 师父ID
+     * @return 徒弟列表信息
+     */
+    java.util.List<com.lqx.opera.common.dto.ApprenticeInfoDTO> getMyApprentices(Long masterId);
 }

@@ -202,6 +202,30 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
     }
 
     @Override
+    public void verifyTicket(String orderNo, Long verifierId) {
+        TicketOrder order = this.getOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<TicketOrder>()
+                .eq(TicketOrder::getOrderNo, orderNo));
+        
+        if (order == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        
+        if (order.getStatus() == 2) {
+            throw new RuntimeException("该门票已核销，请勿重复核销");
+        }
+        
+        if (order.getStatus() != 1) {
+            throw new RuntimeException("订单状态无效(未支付或已取消)");
+        }
+        
+        order.setStatus(2); // 2-Verified
+        order.setVerifierId(verifierId);
+        order.setVerifyTime(LocalDateTime.now());
+        
+        this.updateById(order);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelUnpaidOrders() {
         // Find unpaid orders created more than 30 minutes ago

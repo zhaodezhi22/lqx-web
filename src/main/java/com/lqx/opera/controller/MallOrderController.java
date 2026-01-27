@@ -139,7 +139,7 @@ public class MallOrderController {
             if (createReq.getItems() == null || createReq.getItems().isEmpty()) {
                 return Result.fail(400, "订单商品不能为空");
             }
-            MallOrder order = mallOrderService.createOrder(userId, createReq.getItems());
+            MallOrder order = mallOrderService.createOrder(userId, createReq.getItems(), createReq.getUsedPoints());
             
             // 如果 CreateMallOrderRequest 有 address，更新它
             if (createReq.getAddress() != null && !createReq.getAddress().isEmpty()) {

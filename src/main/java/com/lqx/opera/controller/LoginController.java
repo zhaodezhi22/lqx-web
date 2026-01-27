@@ -68,7 +68,8 @@ public class LoginController {
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             return Result.fail(HttpStatus.UNAUTHORIZED.value(), "密码错误");
         }
-        // 传承人必须审核通过
+        // 传承人审核逻辑暂时移除，允许先登录后补充资料
+        /*
         if (user.getRole() != null && user.getRole() == 1) {
             InheritorProfile profile = inheritorProfileMapper.selectOne(new LambdaQueryWrapper<InheritorProfile>()
                     .eq(InheritorProfile::getUserId, user.getUserId()));
@@ -76,6 +77,7 @@ public class LoginController {
                 return Result.fail(HttpStatus.FORBIDDEN.value(), "传承人尚未审核通过");
             }
         }
+        */
 
         String token = jwtUtils.generateToken(user.getUserId(), user.getUsername(), user.getRole());
         // 不返回密码

@@ -143,16 +143,24 @@ public class TicketController {
     }
 
     /**
-     * 验票核销
+     * 核销门票
      */
-    @PostMapping("/check-in")
-    @RequireRole({2, 3}) // Admin/Auditor
-    public Result<Boolean> checkIn(@RequestParam String orderNo) {
+    @PostMapping("/verify")
+    @RequireRole({1, 2, 3}) // 传承人或工作人员
+    public Result<Boolean> verifyTicket(@RequestBody VerifyTicketRequest req, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
         try {
-            boolean success = ticketService.checkIn(orderNo);
-            return success ? Result.success(true) : Result.fail("核销失败");
+            ticketService.verifyTicket(req.getOrderNo(), userId);
+            return Result.success(true);
         } catch (Exception e) {
             return Result.fail(e.getMessage());
         }
+    }
+
+    @lombok.Data
+    public static class VerifyTicketRequest {
+        private String orderNo;
     }
 }

@@ -8,5 +8,6 @@ import java.util.List;
 public class CreateMallOrderRequest {
     private List<CreateMallOrderItem> items;
     private String address; // 简化：可选收货地址
+    private Integer usedPoints;
 }
 

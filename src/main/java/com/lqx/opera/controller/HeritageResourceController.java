@@ -6,6 +6,7 @@ import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.common.Result;
 import com.lqx.opera.entity.HeritageResource;
 import com.lqx.opera.service.HeritageResourceService;
+import com.lqx.opera.service.SysUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,9 +17,11 @@ import java.util.List;
 public class HeritageResourceController {
 
     private final HeritageResourceService heritageResourceService;
+    private final SysUserService sysUserService;
 
-    public HeritageResourceController(HeritageResourceService heritageResourceService) {
+    public HeritageResourceController(HeritageResourceService heritageResourceService, SysUserService sysUserService) {
         this.heritageResourceService = heritageResourceService;
+        this.sysUserService = sysUserService;
     }
 
     @GetMapping
@@ -53,17 +56,29 @@ public class HeritageResourceController {
     }
 
     /**
-     * 传承人上传资源
+     * 上传资源 (传承人免审，普通用户需审核)
      */
     @PostMapping
-    @RequireRole(1)
+    @RequireRole({0, 1, 2, 3}) // Allow all logged-in users
     public Result<Boolean> add(@RequestBody HeritageResource resource, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) {
             return Result.fail(401, "未登录");
         }
+        
+        com.lqx.opera.entity.SysUser user = sysUserService.getById(userId);
+        if (user == null) return Result.fail(401, "用户不存在");
+
         resource.setUploaderId(userId);
-        resource.setStatus(0); // Pending
+        
+        if (user.getRole() == 1) { // Inheritor
+            resource.setStatus(1); // Published
+            resource.setIsCertified(1); // Certified
+        } else {
+            resource.setStatus(0); // Pending Audit
+            resource.setIsCertified(0);
+        }
+        
         boolean ok = heritageResourceService.save(resource);
         return ok ? Result.success(true) : Result.fail("保存失败");
     }

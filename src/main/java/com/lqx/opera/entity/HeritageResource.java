@@ -20,6 +20,8 @@ public class HeritageResource implements Serializable {
     private String coverImg;
     private String fileUrl;
     private Long uploaderId;
+    @com.baomidou.mybatisplus.annotation.TableField("is_certified")
+    private Integer isCertified;
     private String description;
     private Integer viewCount;
     private Integer status; // 0-Pending, 1-Active, 2-Rejected

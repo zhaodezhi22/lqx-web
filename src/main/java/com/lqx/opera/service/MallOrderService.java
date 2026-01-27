@@ -7,7 +7,10 @@ import com.lqx.opera.entity.MallOrder;
 import java.util.List;
 
 public interface MallOrderService extends IService<MallOrder> {
-    MallOrder createOrder(Long userId, List<CreateMallOrderItem> items);
+    /**
+     * 创建订单
+     */
+    MallOrder createOrder(Long userId, List<CreateMallOrderItem> items, Integer usedPoints);
 
     /**
      * 申请退款
