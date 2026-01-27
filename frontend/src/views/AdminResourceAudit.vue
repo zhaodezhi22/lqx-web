@@ -23,7 +23,8 @@
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
             <el-button link type="primary" @click="preview(row)">预览</el-button>
-            <el-button link type="danger" @click="remove(row)">下架</el-button>
+            <el-button link type="success" @click="approve(row)">通过</el-button>
+            <el-button link type="danger" @click="remove(row)">驳回</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -59,9 +60,13 @@ const getTypeLabel = (type) => {
 const fetchList = async () => {
   loading.value = true
   try {
-    // In a real app, pass keyword as param
-    const res = await request.get('/resources')
-    list.value = res.data || []
+    const res = await request.get('/admin/resources', {
+      params: { 
+        status: 0,
+        keyword: keyword.value 
+      }
+    })
+    list.value = res.data?.records || res.data || []
   } catch (e) {
     ElMessage.error('加载失败')
   } finally {
@@ -74,15 +79,25 @@ const preview = (row) => {
   previewVisible.value = true
 }
 
-const remove = async (row) => {
-  await ElMessageBox.confirm('确定下架删除该资源？', '提示')
+const approve = async (row) => {
+  await ElMessageBox.confirm('确定通过该资源？', '提示')
   try {
-    // Mock delete
-    // await request.delete(`/resources/${row.resourceId}`)
-    ElMessage.success('已下架 (Mock)')
+    await request.put(`/admin/resources/${row.resourceId}/audit`, { status: 1 })
+    ElMessage.success('已通过')
     fetchList()
   } catch (e) {
-    // ElMessage.error('操作失败')
+    ElMessage.error('操作失败')
+  }
+}
+
+const remove = async (row) => {
+  await ElMessageBox.confirm('确定驳回该资源？', '提示')
+  try {
+    await request.put(`/admin/resources/${row.resourceId}/audit`, { status: 2 })
+    ElMessage.success('已驳回')
+    fetchList()
+  } catch (e) {
+    ElMessage.error('操作失败')
   }
 }
 

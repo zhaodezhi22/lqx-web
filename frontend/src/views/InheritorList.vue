@@ -23,16 +23,42 @@
             <!-- 暂无简介字段，预留 -->
             致力于柳琴戏的传承与发扬...
           </div>
+          <div class="actions" style="margin-top: 15px;">
+             <el-button type="primary" size="small" @click.stop="openApply(item)">拜师</el-button>
+          </div>
         </div>
       </el-card>
     </div>
     
     <el-empty v-if="!loading && inheritors.length === 0" description="暂无传承人数据" />
+
+    <!-- Apply Dialog -->
+    <el-dialog v-model="applyDialogVisible" title="拜师申请" width="500px">
+      <el-form :model="applyForm" label-width="80px">
+        <el-form-item label="师父">
+          <el-input v-model="applyForm.masterName" disabled />
+        </el-form-item>
+        <el-form-item label="申请书">
+          <el-input 
+            v-model="applyForm.content" 
+            type="textarea" 
+            :rows="4" 
+            placeholder="请诚恳填写拜师帖，表达您的仰慕与决心..." 
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="applyDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitApply">提交申请</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '../utils/request'
 import { ElMessage } from 'element-plus'
@@ -40,6 +66,13 @@ import { ElMessage } from 'element-plus'
 const router = useRouter()
 const inheritors = ref([])
 const loading = ref(false)
+
+const applyDialogVisible = ref(false)
+const applyForm = reactive({
+  masterId: null,
+  masterName: '',
+  content: ''
+})
 
 const fetchInheritors = async () => {
   loading.value = true
@@ -63,6 +96,34 @@ const goToDetail = (item) => {
   // router.push(`/inheritors/${item.userId}`)
   // For now, just show graph
   router.push('/inheritor/graph')
+}
+
+const openApply = (item) => {
+  applyForm.masterId = item.userId
+  applyForm.masterName = item.name
+  applyForm.content = ''
+  applyDialogVisible.value = true
+}
+
+const submitApply = async () => {
+  if (!applyForm.content) {
+    ElMessage.warning('请填写申请书')
+    return
+  }
+  try {
+    const res = await request.post('/master/apprentice/apply', {
+      masterId: applyForm.masterId,
+      content: applyForm.content
+    })
+    if (res.code === 200) {
+      ElMessage.success('申请提交成功，请等待师父审核')
+      applyDialogVisible.value = false
+    } else {
+      ElMessage.error(res.message || '提交失败')
+    }
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || '提交失败')
+  }
 }
 
 onMounted(() => {

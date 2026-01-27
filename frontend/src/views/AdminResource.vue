@@ -71,8 +71,16 @@ const getTypeLabel = (type) => {
 const fetchList = async () => {
   loading.value = true
   try {
-    const res = await request.get('/resources', { params: { category: keyword.value } })
-    list.value = res.data || []
+    // Admin API allows seeing all statuses. 
+    // If we want to mimic "management" of existing resources, we can list all.
+    const res = await request.get('/admin/resources', { 
+      params: { 
+        keyword: keyword.value 
+        // status: 1 // Optional: Uncomment to only show Active resources
+      } 
+    })
+    // Admin API returns Page object (res.data), records is the list
+    list.value = res.data?.records || []
   } catch (e) {
     ElMessage.error('加载失败')
   } finally {

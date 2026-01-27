@@ -32,7 +32,7 @@ const loading = ref(false)
 const fetchList = async () => {
   loading.value = true
   try {
-    const res = await request.get('/inheritor/pending')
+    const res = await request.get('/admin/inheritor/pending')
     list.value = res.data || []
   } catch (e) {
     ElMessage.error(e?.response?.data?.message || '加载失败')
@@ -44,7 +44,11 @@ const fetchList = async () => {
 const approve = async (row) => {
   await ElMessageBox.confirm('确定通过该申请？', '提示')
   try {
-    await request.post(`/inheritor/approve/${row.id}`)
+    await request.put('/admin/inheritor/audit', {
+      id: row.id,
+      status: 1,
+      remark: '通过'
+    })
     ElMessage.success('已通过')
     fetchList()
   } catch (e) {
@@ -53,13 +57,25 @@ const approve = async (row) => {
 }
 
 const reject = async (row) => {
-  await ElMessageBox.confirm('确定驳回并删除该申请？', '提示')
   try {
-    await request.post(`/inheritor/reject/${row.id}`)
+    const { value } = await ElMessageBox.prompt('请输入驳回理由', '驳回申请', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /\S/,
+      inputErrorMessage: '理由不能为空'
+    })
+    
+    await request.put('/admin/inheritor/audit', {
+      id: row.id,
+      status: 2,
+      remark: value
+    })
     ElMessage.success('已驳回')
     fetchList()
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '操作失败')
+    if (e !== 'cancel') {
+       ElMessage.error(e?.response?.data?.message || '操作失败')
+    }
   }
 }
 

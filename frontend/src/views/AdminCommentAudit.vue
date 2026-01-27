@@ -31,21 +31,36 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
+import request from '../utils/request'
+
 const status = ref('pending')
-const list = ref([
-  { id: 101, content: '这戏唱的真不错！', user: 'test_user', time: '2024-05-20 10:00' },
-  { id: 102, content: '有些地方听不懂，建议加字幕', user: 'user_123', time: '2024-05-20 10:05' },
-])
+const list = ref([])
+const loading = ref(false)
 
-const fetchList = () => {
-  // Mock fetch
-  ElMessage.info('刷新列表 (Mock)')
+const fetchList = async () => {
+  loading.value = true
+  try {
+    const res = await request.get('/admin/comments', { params: { status: status.value } })
+    list.value = res.data || []
+  } catch (e) {
+    ElMessage.error('加载失败')
+  } finally {
+    loading.value = false
+  }
 }
 
-const handle = (row, action) => {
-  ElMessage.success(action === 'pass' ? '已通过' : '已屏蔽')
-  list.value = list.value.filter(i => i.id !== row.id)
+const handle = async (row, action) => {
+  try {
+    await request.put(`/admin/comments/${row.id}/audit`, { action })
+    ElMessage.success(action === 'pass' ? '已通过' : '已屏蔽')
+    fetchList()
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
 }
+
+// Initial fetch
+fetchList()
 </script>
 
 <style scoped>

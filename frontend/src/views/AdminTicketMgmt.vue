@@ -22,7 +22,7 @@
             <el-table-column label="操作" width="250">
               <template #default="{ row }">
                 <el-button link type="primary" @click="showEditDialog(row)">编辑</el-button>
-                <el-button link type="primary">座位图</el-button>
+                <el-button link type="primary" @click="$router.push(`/admin/event/${row.eventId}/seats`)">座位图</el-button>
                 <el-button link type="warning">核销检票</el-button>
               </template>
             </el-table-column>

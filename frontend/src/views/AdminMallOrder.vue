@@ -9,7 +9,7 @@
              <el-radio-button :label="1">待发货</el-radio-button>
              <el-radio-button :label="2">已发货</el-radio-button>
              <el-radio-button :label="4">退款待审</el-radio-button>
-             <el-radio-button :label="5">已退款</el-radio-button>
+             <el-radio-button :label="3">已取消</el-radio-button>
            </el-radio-group>
         </div>
       </div>
@@ -21,22 +21,31 @@
         <el-table-column prop="totalAmount" label="金额" width="120" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-             <el-tag v-if="row.status === 0" type="warning">待支付</el-tag>
-             <el-tag v-else-if="row.status === 1" type="primary">待发货</el-tag>
+             <el-tag v-if="row.status === 0" type="info">待支付</el-tag>
+             <el-tag v-else-if="row.status === 1" type="primary">已支付</el-tag>
              <el-tag v-else-if="row.status === 2" type="success">已发货</el-tag>
-             <el-tag v-else-if="row.status === 3" type="info">已完成</el-tag>
-             <el-tag v-else-if="row.status === 4" type="warning" effect="dark">退款审核中</el-tag>
-             <el-tag v-else-if="row.status === 5" type="info" effect="dark">已退款</el-tag>
-             <el-tag v-else type="danger">已取消</el-tag>
+             <el-tag v-else-if="row.status === 3" type="danger">已取消</el-tag>
+             <el-tag v-else-if="row.status === 4" type="warning">退款申请</el-tag>
+             <el-tag v-else-if="row.status === 5" type="info">已退款</el-tag>
+             <el-tag v-else type="info">未知</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="logisticsNo" label="物流单号" />
+        <el-table-column label="物流追踪" min-width="200">
+            <template #default="{ row }">
+                <div v-if="row.deliveryCompany || row.deliveryNo">
+                    <div>{{ row.deliveryCompany }}</div>
+                    <small>{{ row.deliveryNo }}</small>
+                </div>
+                <span v-else>-</span>
+            </template>
+        </el-table-column>
         <el-table-column prop="createTime" label="下单时间" width="180" />
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status === 1" type="primary" size="small" @click="openShip(row)">发货</el-button>
-            <el-button v-if="row.status === 4" type="success" size="small" @click="auditRefund(row, true)">通过</el-button>
-            <el-button v-if="row.status === 4" type="danger" size="small" @click="auditRefund(row, false)">驳回</el-button>
+            <el-button v-if="row.status === 1" type="primary" size="small" @click="openShip(row)">去发货</el-button>
+            <el-button v-if="row.status === 4" type="success" size="small" @click="confirmRefund(row)">同意退款</el-button>
+            <!-- 预留驳回功能 -->
+            <!-- <el-button v-if="row.status === 4" type="danger" size="small" @click="auditRefund(row, false)">驳回</el-button> -->
           </template>
         </el-table-column>
       </el-table>
@@ -44,13 +53,23 @@
 
     <el-dialog v-model="shipDialogVisible" title="发货操作" width="400px">
       <el-form :model="shipForm" label-width="100px">
+        <el-form-item label="物流公司">
+            <el-select v-model="shipForm.deliveryCompany" placeholder="请选择物流公司" style="width: 100%">
+                <el-option label="顺丰速运" value="顺丰速运" />
+                <el-option label="圆通速递" value="圆通速递" />
+                <el-option label="中通快递" value="中通快递" />
+                <el-option label="韵达快递" value="韵达快递" />
+                <el-option label="EMS" value="EMS" />
+                <el-option label="其他" value="其他" />
+            </el-select>
+        </el-form-item>
         <el-form-item label="物流单号">
-          <el-input v-model="shipForm.logisticsNo" placeholder="输入物流单号" />
+          <el-input v-model="shipForm.deliveryNo" placeholder="输入物流单号" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="shipDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmShip">确认发货</el-button>
+        <el-button type="primary" @click="handleShip">确认发货</el-button>
       </template>
     </el-dialog>
   </div>
@@ -68,7 +87,8 @@ const status = ref(null)
 const shipDialogVisible = ref(false)
 const shipForm = reactive({
   orderId: null,
-  logisticsNo: ''
+  deliveryCompany: '',
+  deliveryNo: ''
 })
 
 const fetchList = async () => {
@@ -87,39 +107,29 @@ const fetchList = async () => {
 
 const openShip = (row) => {
   shipForm.orderId = row.id
-  shipForm.logisticsNo = ''
+  shipForm.deliveryCompany = ''
+  shipForm.deliveryNo = ''
   shipDialogVisible.value = true
 }
 
-const auditRefund = (row, pass) => {
-  ElMessageBox.confirm(
-    `确定要${pass ? '通过' : '驳回'}退款申请吗？`,
-    '审核确认',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: pass ? 'warning' : 'info',
-    }
-  ).then(async () => {
-    try {
-      await request.post(`/mall/refund/audit/${row.id}?pass=${pass}`)
-      ElMessage.success('操作成功')
-      fetchList()
-    } catch (e) {
-      ElMessage.error('操作失败')
-    }
-  })
-}
-
-const confirmShip = async () => {
-  if (!shipForm.logisticsNo) {
+const handleShip = async () => {
+  if (!shipForm.deliveryCompany) {
+      ElMessage.warning('请选择物流公司')
+      return
+  }
+  if (!shipForm.deliveryNo) {
     ElMessage.warning('请输入物流单号')
     return
   }
   try {
-    await request.put(`/mall/orders/${shipForm.orderId}/ship`, {
-      logisticsNo: shipForm.logisticsNo
-    })
+    // 使用 URLSearchParams 传递 query parameters，或者修改后端接收 JSON
+    // 后端 Controller 定义为 @RequestParam，所以使用 params 或 form data 格式
+    const formData = new FormData()
+    formData.append('deliveryCompany', shipForm.deliveryCompany)
+    formData.append('deliveryNo', shipForm.deliveryNo)
+    
+    await request.post(`/mall/ship/${shipForm.orderId}`, formData)
+    
     ElMessage.success('发货成功')
     shipDialogVisible.value = false
     fetchList()
@@ -128,10 +138,31 @@ const confirmShip = async () => {
   }
 }
 
+const confirmRefund = (row) => {
+  ElMessageBox.confirm(
+    `确定同意退款吗？此操作将取消订单并回滚库存。`,
+    '退款确认',
+    {
+      confirmButtonText: '同意退款',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(async () => {
+    try {
+      await request.post(`/mall/refund/confirm/${row.id}`)
+      ElMessage.success('退款处理成功，订单已取消')
+      fetchList()
+    } catch (e) {
+      ElMessage.error(e?.response?.data?.message || '操作失败')
+    }
+  })
+}
+
 onMounted(fetchList)
 </script>
 
 <style scoped>
 .page { padding: 16px; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.filter { display: flex; gap: 10px; }
 </style>

@@ -108,7 +108,8 @@
                   <template #default="{ row }">
                     <el-tag type="success" v-if="row.status === 1">已支付</el-tag>
                     <el-tag type="warning" v-else-if="row.status === 0">待支付</el-tag>
-                    <el-tag type="info" v-else-if="row.status === 3">已退票</el-tag>
+                    <el-tag type="warning" v-else-if="row.status === 3">退款审核中</el-tag>
+                    <el-tag type="info" v-else-if="row.status === 4">已退票</el-tag>
                     <el-tag type="danger" v-else>已取消</el-tag>
                   </template>
                 </el-table-column>
@@ -140,10 +141,69 @@
                 </el-form-item>
               </el-form>
             </el-tab-pane>
+            <el-tab-pane label="我的师门" name="apprenticeship">
+              <div class="apprenticeship-container">
+                <el-table :data="assignments" v-loading="assignmentsLoading" style="width: 100%">
+                  <el-table-column prop="taskTitle" label="作业题目" min-width="150" />
+                  <el-table-column prop="masterName" label="授课师父" width="120" />
+                  <el-table-column label="状态" width="100">
+                    <template #default="{ row }">
+                      <el-tag v-if="row.status === 0" type="info">待提交</el-tag>
+                      <el-tag v-else-if="row.status === 1" type="primary">已提交</el-tag>
+                      <el-tag v-else-if="row.status === 2" type="success">已点评</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="150">
+                    <template #default="{ row }">
+                      <el-button link type="primary" @click="openSubmit(row)">
+                        {{ row.status === 0 ? '去提交' : '查看/修改' }}
+                      </el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div v-if="!assignmentsLoading && (!assignments || assignments.length === 0)" style="margin-top: 16px">
+                   <el-empty description="暂无作业任务" />
+                </div>
+              </div>
+            </el-tab-pane>
           </el-tabs>
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- Homework Submit Dialog -->
+    <el-dialog v-model="submitDialogVisible" :title="'提交作业: ' + submitForm.taskTitle" width="600px">
+      <el-form :model="submitForm" label-width="100px">
+        <el-form-item label="演示视频" v-if="submitForm.demoVideoUrl">
+           <video :src="submitForm.demoVideoUrl" controls style="width: 100%; max-height: 200px; background: #000"></video>
+           <div class="tip" style="font-size: 12px; color: #999">师父的演示视频</div>
+        </el-form-item>
+        <el-form-item label="作业说明">
+           <div style="background: #f5f7fa; padding: 10px; border-radius: 4px; width: 100%">{{ submitForm.taskDescription }}</div>
+        </el-form-item>
+        
+        <el-divider />
+
+        <el-form-item label="作业心得">
+          <el-input 
+            v-model="submitForm.content" 
+            type="textarea" 
+            :rows="4" 
+            placeholder="请填写作业心得或说明..." 
+          />
+        </el-form-item>
+        <el-form-item label="作业视频URL">
+          <el-input v-model="submitForm.videoUrl" placeholder="请输入视频链接 (如 OSS 地址)" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="submitDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="doSubmit">提交作业</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
     <ProductDetailModal v-model:visible="detailVisible" :product-id="currentProductId" />
   </div>
 </template>
@@ -204,6 +264,18 @@ const statusTagType = (s) => {
 const tickets = ref([])
 const ticketsLoading = ref(false)
 
+const assignments = ref([])
+const assignmentsLoading = ref(false)
+const submitDialogVisible = ref(false)
+const submitForm = reactive({
+  assignmentId: null,
+  taskTitle: '',
+  taskDescription: '',
+  demoVideoUrl: '',
+  content: '',
+  videoUrl: ''
+})
+
 const formatTime = (arr) => {
   if (!arr) return ''
   if (Array.isArray(arr)) {
@@ -238,6 +310,53 @@ const fetchTickets = async () => {
     ElMessage.error('加载票务失败')
   } finally {
     ticketsLoading.value = false
+  }
+}
+
+const fetchAssignments = async () => {
+  assignmentsLoading.value = true
+  try {
+    const res = await request.get('/teaching/my-assignments')
+    if (res.code === 200) {
+      assignments.value = res.data || []
+    }
+  } catch (e) {
+    ElMessage.error('加载作业失败')
+  } finally {
+    assignmentsLoading.value = false
+  }
+}
+
+const openSubmit = (row) => {
+  submitForm.assignmentId = row.assignmentId
+  submitForm.taskTitle = row.taskTitle
+  submitForm.taskDescription = row.taskDescription
+  submitForm.demoVideoUrl = row.demoVideoUrl
+  submitForm.content = row.submissionContent || ''
+  submitForm.videoUrl = row.submissionVideoUrl || ''
+  submitDialogVisible.value = true
+}
+
+const doSubmit = async () => {
+  if (!submitForm.content) {
+      ElMessage.warning('请填写作业说明')
+      return
+  }
+  try {
+      const res = await request.post('/teaching/submit', {
+          assignmentId: submitForm.assignmentId,
+          content: submitForm.content,
+          videoUrl: submitForm.videoUrl
+      })
+      if (res.code === 200) {
+          ElMessage.success('提交成功')
+          submitDialogVisible.value = false
+          fetchAssignments()
+      } else {
+          ElMessage.error(res.message || '提交失败')
+      }
+  } catch (e) {
+      ElMessage.error('提交失败')
   }
 }
 
@@ -324,6 +443,8 @@ onMounted(() => {
     fetchMyOrders()
   } else if (activeTab.value === 'tickets') {
     fetchTickets()
+  } else if (activeTab.value === 'apprenticeship') {
+    fetchAssignments()
   }
 })
 
@@ -332,6 +453,8 @@ watch(activeTab, (val) => {
     fetchMyOrders()
   } else if (val === 'tickets') {
     fetchTickets()
+  } else if (val === 'apprenticeship') {
+    fetchAssignments()
   }
 })
 </script>

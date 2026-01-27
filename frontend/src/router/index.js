@@ -38,9 +38,13 @@ const routes = [
     children: [
       { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/AdminDashboard.vue') },
       { path: 'inheritor-review', name: 'AdminInheritorReview', component: () => import('../views/AdminInheritorReview.vue') },
+      { path: 'resource-audit', name: 'AdminResourceAudit', component: () => import('../views/AdminResourceAudit.vue') },
+      { path: 'event-audit', name: 'AdminEventAudit', component: () => import('../views/AdminEventAudit.vue') },
+      { path: 'product-audit', name: 'AdminProductAudit', component: () => import('../views/AdminProductAudit.vue') },
       { path: 'resources', name: 'AdminResource', component: () => import('../views/AdminResource.vue') },
       { path: 'lineage', name: 'AdminLineageMgmt', component: () => import('../views/AdminLineageMgmt.vue') },
       { path: 'tickets', name: 'AdminTicketMgmt', component: () => import('../views/AdminTicketMgmt.vue') },
+      { path: 'event/:id/seats', name: 'AdminSeatMgmt', component: () => import('../views/AdminSeatMgmt.vue') },
       { path: 'mall', name: 'AdminMallOrder', component: () => import('../views/AdminMallOrder.vue') },
       { path: 'comments', name: 'AdminCommentAudit', component: () => import('../views/AdminCommentAudit.vue') },
       { path: 'users', name: 'AdminUser', component: () => import('../views/AdminUser.vue') },

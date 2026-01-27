@@ -50,6 +50,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
+import request from '../utils/request'
+
 const loading = ref(false)
 const dialogVisible = ref(false)
 const lineageList = ref([])
@@ -62,37 +64,40 @@ const form = reactive({
   startDate: ''
 })
 
-// Mock Data
-const mockData = [
-  { id: 1, masterName: '张大师', apprenticeName: '李小徒', heritageItem: '苏绣', startDate: '2020-05-20' },
-  { id: 2, masterName: '王老艺人', apprenticeName: '赵学徒', heritageItem: '皮影戏', startDate: '2021-09-10' }
-]
-
-const fetchList = () => {
+const fetchList = async () => {
   loading.value = true
-  setTimeout(() => {
-    lineageList.value = [...mockData]
+  try {
+    const res = await request.get('/admin/apprenticeship')
+    lineageList.value = res.data?.records || []
+  } catch (e) {
+    ElMessage.error('加载失败')
+  } finally {
     loading.value = false
-  }, 500)
+  }
 }
 
 const editLineage = (row) => {
+  // Editing logic might be complex if changing IDs, so let's just show info or basic edit
+  // For now just populate form
   Object.assign(form, row)
   dialogVisible.value = true
 }
 
 const deleteLineage = async (row) => {
   await ElMessageBox.confirm(`确定删除 ${row.masterName} - ${row.apprenticeName} 的关系吗？`, '提示')
-  ElMessage.success('删除成功 (Mock)')
-  fetchList()
+  try {
+    await request.delete(`/admin/apprenticeship/${row.id}`)
+    ElMessage.success('删除成功')
+    fetchList()
+  } catch (e) {
+    ElMessage.error('删除失败')
+  }
 }
 
 const saveLineage = () => {
+  // Not implementing create/update for now as it requires selecting users
   dialogVisible.value = false
-  ElMessage.success(form.id ? '更新成功 (Mock)' : '添加成功 (Mock)')
-  fetchList()
-  // Reset form
-  Object.assign(form, { id: null, masterName: '', apprenticeName: '', heritageItem: '', startDate: '' })
+  ElMessage.info('暂不支持管理员直接添加，请由传承人发起')
 }
 
 onMounted(() => {
