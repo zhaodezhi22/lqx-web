@@ -31,13 +31,16 @@ public class MallOrderController {
     private final MallOrderService mallOrderService;
     private final MallOrderItemService mallOrderItemService;
     private final ProductService productService;
+    private final com.lqx.opera.service.AdminOrderService adminOrderService;
 
     public MallOrderController(MallOrderService mallOrderService,
                                MallOrderItemService mallOrderItemService,
-                               ProductService productService) {
+                               ProductService productService,
+                               com.lqx.opera.service.AdminOrderService adminOrderService) {
         this.mallOrderService = mallOrderService;
         this.mallOrderItemService = mallOrderItemService;
         this.productService = productService;
+        this.adminOrderService = adminOrderService;
     }
 
     @PostMapping("/refund/apply/{id}")
@@ -68,6 +71,36 @@ public class MallOrderController {
         try {
             boolean ok = mallOrderService.auditRefund(id, pass);
             return ok ? Result.success(true) : Result.fail("审核失败");
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 审核员发货
+     */
+    @PostMapping("/ship/{id}")
+    @RequireRole({2, 3})
+    public Result<Boolean> shipOrder(@PathVariable Long id, 
+                                     @RequestParam(required = false) String deliveryCompany, 
+                                     @RequestParam String deliveryNo) {
+        try {
+            adminOrderService.shipOrder(id, deliveryCompany, deliveryNo);
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 审核员确认退款/强制取消
+     */
+    @PostMapping("/refund/confirm/{id}")
+    @RequireRole({2, 3})
+    public Result<Boolean> confirmRefund(@PathVariable Long id) {
+        try {
+            adminOrderService.confirmRefund(id);
+            return Result.success(true);
         } catch (Exception e) {
             return Result.fail(e.getMessage());
         }
@@ -173,7 +206,7 @@ public class MallOrderController {
             List<MallOrderDto> dtos = orders.stream().map(order -> {
                 MallOrderDto dto = new MallOrderDto();
                 BeanUtils.copyProperties(order, dto);
-                dto.setId(null); // 隐藏订单 ID
+                // dto.setId(null); // 不要隐藏订单 ID，前端操作需要使用
 
                 // 优先使用数据库存储的 createTime
                 LocalDateTime createTime = order.getCreateTime();

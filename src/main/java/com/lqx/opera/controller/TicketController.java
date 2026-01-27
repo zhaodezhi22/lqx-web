@@ -141,4 +141,18 @@ public class TicketController {
         Page<PerformanceEvent> page = new Page<>(1, limit == null ? 3 : limit);
         return Result.success(performanceEventService.page(page, wrapper).getRecords());
     }
+
+    /**
+     * 验票核销
+     */
+    @PostMapping("/check-in")
+    @RequireRole({2, 3}) // Admin/Auditor
+    public Result<Boolean> checkIn(@RequestParam String orderNo) {
+        try {
+            boolean success = ticketService.checkIn(orderNo);
+            return success ? Result.success(true) : Result.fail("核销失败");
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
 }

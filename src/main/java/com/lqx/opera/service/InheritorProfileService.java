@@ -18,5 +18,13 @@ public interface InheritorProfileService extends IService<InheritorProfile> {
      * @return 排序后的列表
      */
     java.util.List<InheritorProfile> getListSortedByLevel();
+
+    /**
+     * 审核传承人
+     * @param id 档案ID
+     * @param status 1-Pass, 2-Reject
+     * @param remark 审核意见
+     */
+    void auditInheritor(Long id, Integer status, String remark);
 }
 

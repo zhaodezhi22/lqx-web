@@ -21,34 +21,16 @@ public class PerformanceEventController {
     }
 
     @GetMapping
-    public Result<List<PerformanceEvent>> list(@RequestParam(required = false) Integer status,
-                                               @RequestParam(required = false) Boolean upcoming,
-                                               @RequestParam(required = false) Boolean all) {
+    public Result<List<PerformanceEvent>> list(@RequestParam(required = false) Boolean all) {
         LambdaQueryWrapper<PerformanceEvent> wrapper = new LambdaQueryWrapper<>();
-        
         if (Boolean.TRUE.equals(all)) {
-            // No status filter (return all)
-        } else if (status != null) {
-            wrapper.eq(PerformanceEvent::getStatus, status);
+            // Admin: Sort by Status (1-Selling first), then ShowTime
+            wrapper.last("ORDER BY CASE WHEN status = 1 THEN 0 ELSE 1 END ASC, show_time DESC");
         } else {
-            wrapper.eq(PerformanceEvent::getStatus, 1);
+            // User: Show active/ended events
+            wrapper.in(PerformanceEvent::getStatus, 1, 2);
+            wrapper.orderByDesc(PerformanceEvent::getShowTime);
         }
-        
-        if (Boolean.TRUE.equals(upcoming)) {
-            wrapper.ge(PerformanceEvent::getShowTime, LocalDateTime.now());
-        }
-        
-        wrapper.orderByDesc(PerformanceEvent::getShowTime); // Admin usually wants latest first, or maybe sorting by time is fine.
-        // Original was orderByAsc showTime (for upcoming events, earliest first makes sense).
-        // Let's keep Asc for upcoming, but maybe Desc for admin list?
-        // Let's stick to one order for now or make it dynamic.
-        // If 'all' is true (admin), maybe Desc is better.
-        if (Boolean.TRUE.equals(all)) {
-            wrapper.orderByDesc(PerformanceEvent::getEventId);
-        } else {
-            wrapper.orderByAsc(PerformanceEvent::getShowTime);
-        }
-        
         return Result.success(performanceEventService.list(wrapper));
     }
 
@@ -91,7 +73,7 @@ public class PerformanceEventController {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) return Result.fail(401, "未登录");
         event.setPublisherId(userId);
-        event.setStatus(1); 
+        event.setStatus(0); // 0-Pending Audit
         return performanceEventService.save(event) ? Result.success(true) : Result.fail("发布失败");
     }
 

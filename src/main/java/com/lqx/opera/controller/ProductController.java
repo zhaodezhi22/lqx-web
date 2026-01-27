@@ -44,34 +44,87 @@ public class ProductController {
         return Result.success(product);
     }
 
+    // Admin Create
     @PostMapping
+    @RequireRole({2, 3})
     public Result<Boolean> create(@RequestBody Product product) {
         boolean saved = productService.save(product);
         return saved ? Result.success(true) : Result.fail("保存失败");
     }
 
+    // Admin Update
     @PutMapping("/{id}")
+    @RequireRole({2, 3})
     public Result<Boolean> update(@PathVariable Long id, @RequestBody Product product) {
         product.setProductId(id);
         boolean updated = productService.updateById(product);
         return updated ? Result.success(true) : Result.fail("更新失败");
     }
 
+    // Admin Delete
     @DeleteMapping("/{id}")
+    @RequireRole({2, 3})
     public Result<Boolean> delete(@PathVariable Long id) {
         boolean removed = productService.removeById(id);
         return removed ? Result.success(true) : Result.fail("删除失败");
     }
 
+    // Admin Audit
+    @PutMapping("/audit")
+    @RequireRole({2, 3})
+    public Result<Boolean> audit(@RequestBody AuditRequest req) {
+        Product product = productService.getById(req.getId());
+        if (product == null) return Result.fail("商品不存在");
+        
+        product.setStatus(req.getStatus()); // 1-On Shelf, 2-Off/Reject
+        return productService.updateById(product) ? Result.success(true) : Result.fail("审核失败");
+    }
+
+    @lombok.Data
+    public static class AuditRequest {
+        private Long id;
+        private Integer status;
+    }
+
+    // Inheritor Create
     @PostMapping("/create")
     @RequireRole(1)
     public Result<Boolean> createMyProduct(@RequestBody Product product, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) return Result.fail(401, "未登录");
         product.setSellerId(userId);
-        product.setStatus(1);
+        product.setStatus(0); // 0-Pending Audit
         product.setCreatedTime(LocalDateTime.now());
         return productService.save(product) ? Result.success(true) : Result.fail("发布失败");
+    }
+
+    // Inheritor Update
+    @PutMapping("/my-product/{id}")
+    @RequireRole(1)
+    public Result<Boolean> updateMyProduct(@PathVariable Long id, @RequestBody Product product, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        Product old = productService.getById(id);
+        if (old == null) return Result.fail(404, "商品不存在");
+        if (!old.getSellerId().equals(userId)) return Result.fail(403, "无权修改");
+        
+        product.setProductId(id);
+        product.setSellerId(userId); // Ensure ownership
+        product.setStatus(0); // Re-submit for audit
+        boolean updated = productService.updateById(product);
+        return updated ? Result.success(true) : Result.fail("更新失败");
+    }
+
+    // Inheritor Delete
+    @DeleteMapping("/my-product/{id}")
+    @RequireRole(1)
+    public Result<Boolean> deleteMyProduct(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        Product old = productService.getById(id);
+        if (old == null) return Result.fail(404, "商品不存在");
+        if (!old.getSellerId().equals(userId)) return Result.fail(403, "无权删除");
+        
+        boolean removed = productService.removeById(id);
+        return removed ? Result.success(true) : Result.fail("删除失败");
     }
 
     @GetMapping("/my-products")
@@ -84,4 +137,3 @@ public class ProductController {
                 .orderByDesc(Product::getCreatedTime)));
     }
 }
-

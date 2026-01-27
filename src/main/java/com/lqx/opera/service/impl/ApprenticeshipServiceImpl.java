@@ -19,10 +19,14 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
 
     private final InheritorProfileService inheritorProfileService;
     private final SysUserService sysUserService;
+    private final com.lqx.opera.service.CommunityService communityService;
 
-    public ApprenticeshipServiceImpl(InheritorProfileService inheritorProfileService, SysUserService sysUserService) {
+    public ApprenticeshipServiceImpl(InheritorProfileService inheritorProfileService, 
+                                     SysUserService sysUserService,
+                                     com.lqx.opera.service.CommunityService communityService) {
         this.inheritorProfileService = inheritorProfileService;
         this.sysUserService = sysUserService;
+        this.communityService = communityService;
     }
 
     @Override
@@ -82,12 +86,14 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             if (studentProfile != null) {
                 studentProfile.setMasterName(mentorName);
                 inheritorProfileService.updateById(studentProfile);
-            } else {
-                // 如果学徒没有档案，可能需要创建？或者抛出异常？
-                // 假设学徒应该先注册成为普通传承人用户或者系统自动创建
-                // 这里暂时只更新已存在的档案，若不存在则可能需要业务确认
-                // 既然是拜师，通常已经是圈内人。
             }
+
+            // 自动发布社区动态
+            SysUser student = sysUserService.getById(apply.getStudentId());
+            String studentName = (student != null && student.getRealName() != null) ? student.getRealName() : (student != null ? student.getUsername() : "未知学徒");
+            String content = "恭喜 " + studentName + " 正式拜入 " + mentorName + " 大师门下，传承非遗文化！";
+            // 假设使用系统账号或师父账号发布？这里使用师父账号发布
+            communityService.createPost(mentorId, content, null);
         } else {
             apply.setStatus(2); // 拒绝
         }

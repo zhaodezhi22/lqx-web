@@ -18,6 +18,8 @@ public class CommunityComment implements Serializable {
     private Long targetId;
     private Integer targetType;
     private String content;
+    private Integer isOfficial; // 0-Normal, 1-Official/Master
+    private Integer status; // 0-Normal, 1-Reported, 2-Hidden
     private LocalDateTime createdTime;
 }
 

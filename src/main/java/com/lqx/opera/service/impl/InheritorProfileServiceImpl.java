@@ -169,5 +169,32 @@ public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMap
         }
         return result;
     }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+    public void auditInheritor(Long id, Integer status, String remark) {
+        InheritorProfile profile = this.getById(id);
+        if (profile == null) {
+            throw new RuntimeException("档案不存在");
+        }
+        
+        profile.setVerifyStatus(status);
+        profile.setAuditRemark(remark);
+        profile.setAuditTime(java.time.LocalDateTime.now());
+        
+        this.updateById(profile);
+
+        // 如果审核通过，更新用户角色
+        if (status == 1) {
+            SysUser user = sysUserService.getById(profile.getUserId());
+            if (user != null) {
+                user.setRole(1); // 1-Inheritor
+                sysUserService.updateById(user);
+            }
+        }
+        
+        // Notification logic would go here
+        // e.g., messageService.send(profile.getUserId(), "Your application has been " + (status == 1 ? "approved" : "rejected"));
+    }
 }
 

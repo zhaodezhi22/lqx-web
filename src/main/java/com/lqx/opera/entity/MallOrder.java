@@ -27,8 +27,14 @@ public class MallOrder implements Serializable {
     @TableField("address_snapshot")
     private String addressSnapshot;
 
+    @TableField("delivery_company")
+    private String deliveryCompany;
+
+    @TableField("delivery_no")
+    private String deliveryNo;
+
     @TableField("status")
-    private Integer status; // 0-待付 1-已付 2-发货 3-完成
+    private Integer status; // 0-待付 1-已付 2-已发货 3-已取消/退款 4-退款中 5-已退款(Old)
 
     @TableField("create_time")
     private java.time.LocalDateTime createTime;

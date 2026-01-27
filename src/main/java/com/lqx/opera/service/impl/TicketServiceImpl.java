@@ -279,6 +279,28 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         return this.updateById(order);
     }
 
+    @Override
+    public boolean checkIn(String orderNo) {
+        TicketOrder order = this.getOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<TicketOrder>()
+                .eq(TicketOrder::getOrderNo, orderNo));
+        
+        if (order == null) {
+            throw new RuntimeException("无效的票号");
+        }
+        
+        if (order.getStatus() == 2) {
+            throw new RuntimeException("该票已核销");
+        }
+        
+        if (order.getStatus() != 1) {
+            throw new RuntimeException("该票状态不可核销 (状态码: " + order.getStatus() + ")");
+        }
+        
+        // Update to 2-Checked-in
+        order.setStatus(2);
+        return this.updateById(order);
+    }
+
     private void changeSeatStatus(PerformanceEvent event, String seatId, int targetStatus) {
         try {
             List<Map<String, Object>> layout = new ArrayList<>();

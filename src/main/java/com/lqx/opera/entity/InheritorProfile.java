@@ -21,5 +21,8 @@ public class InheritorProfile implements Serializable {
     private String artisticCareer;
     private String awards;
     private Integer verifyStatus;
+    private String auditRemark;
+    private java.time.LocalDateTime auditTime;
+    private String certificates; // JSON list of image URLs
 }
 

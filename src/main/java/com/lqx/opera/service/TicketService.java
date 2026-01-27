@@ -40,4 +40,11 @@ public interface TicketService extends IService<TicketOrder> {
      * @return 是否成功
      */
     boolean refundTicket(Long userId, Long orderId);
+
+    /**
+     * 验票核销
+     * @param orderNo 订单编号/序列号
+     * @return 是否成功
+     */
+    boolean checkIn(String orderNo);
 }
