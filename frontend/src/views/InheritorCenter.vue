@@ -60,6 +60,23 @@
         </el-row>
       </el-tab-pane>
 
+      <!-- 8. My Apprentices -->
+      <el-tab-pane label="我的门徒" name="my-apprentices">
+        <el-table :data="myApprenticesList" v-loading="myApprenticesLoading" style="width: 100%">
+            <el-table-column label="头像" width="80">
+                <template #default="scope">
+                    <el-avatar :src="scope.row.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
+                </template>
+            </el-table-column>
+            <el-table-column prop="realName" label="姓名" />
+            <el-table-column prop="username" label="用户名" />
+            <el-table-column prop="phone" label="电话" />
+            <el-table-column prop="level" label="等级" />
+            <el-table-column prop="joinTime" label="拜师时间">
+                <template #default="scope">{{ formatDate(scope.row.joinTime) }}</template>
+            </el-table-column>
+        </el-table>
+      </el-tab-pane>
 
       <!-- 7. 授业管理 (Teaching) -->
       <el-tab-pane label="授业管理" name="teaching">
@@ -938,11 +955,29 @@ const submitReview = async () => {
     }
 }
 
+// --- My Apprentices (Full Info) ---
+const myApprenticesList = ref([])
+const myApprenticesLoading = ref(false)
+
+const fetchMyApprenticesFull = async () => {
+    myApprenticesLoading.value = true
+    try {
+        const res = await request.get('/master/apprentice/my-apprentices')
+        myApprenticesList.value = res.data || []
+    } catch (e) {
+        ElMessage.error('获取徒弟列表失败')
+    } finally {
+        myApprenticesLoading.value = false
+    }
+}
+
 watch(activeTab, (val) => {
     if (val === 'teaching') {
         fetchTasks()
     } else if (val === 'apprenticeship') {
         fetchApprenticeship()
+    } else if (val === 'my-apprentices') {
+        fetchMyApprenticesFull()
     } else if (val === 'resources') {
         fetchResources()
     } else if (val === 'products') {
