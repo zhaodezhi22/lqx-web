@@ -17,7 +17,15 @@
             </div>
           </div>
           <div class="actions">
-             <el-button type="primary" size="small" @click.stop="addToCart(item)">加入购物车</el-button>
+             <el-button 
+               type="primary" 
+               size="small" 
+               :disabled="item.stock <= 0" 
+               @click.stop="addToCart(item)"
+             >
+               <span v-if="item.stock > 0">加入购物车</span>
+               <span v-else>已售罄</span>
+             </el-button>
           </div>
         </el-card>
       </el-col>
@@ -72,7 +80,10 @@
               </h3>
           </div>
           <h3 v-else>总计: ¥ {{ totalAmount }}</h3>
-          <el-button type="danger" style="width: 100%; margin-top: 15px;" @click="openCheckoutDialog">去结算</el-button>
+          <div style="display: flex; gap: 10px; margin-top: 15px;">
+            <el-button type="info" plain style="flex: 1;" @click="clearCart">清空</el-button>
+            <el-button type="danger" style="flex: 2;" @click="openCheckoutDialog">去结算</el-button>
+          </div>
         </div>
       </div>
     </el-drawer>
@@ -123,7 +134,7 @@
 <script setup>
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ShoppingCart, Delete } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useCartStore } from '../stores/cart'
@@ -210,6 +221,10 @@ const openDetail = (item) => {
 }
 
 const addToCart = (item) => {
+  if (item.stock <= 0) {
+    ElMessage.warning('该商品暂时无货')
+    return
+  }
   if (cart.add(item)) {
     ElMessage.success('已加入购物车')
   }
@@ -283,6 +298,17 @@ const confirmOrder = async () => {
   } finally {
       submitting.value = false
   }
+}
+
+const clearCart = () => {
+  ElMessageBox.confirm('确定要清空购物车吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    cart.clear()
+    ElMessage.success('购物车已清空')
+  }).catch(() => {})
 }
 
 const checkout = () => {

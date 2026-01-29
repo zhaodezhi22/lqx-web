@@ -234,9 +234,9 @@ public class ProductController {
         List<Long> orderIds = items.stream().map(com.lqx.opera.entity.MallOrderItem::getOrderId).distinct().toList();
         List<com.lqx.opera.entity.MallOrder> orders = mallOrderService.listByIds(orderIds);
         
-        // Filter valid orders (Paid=1, Shipped=2, RefundPending=4)
+        // Filter valid orders (Paid=1, Shipped=2, RefundPending=4, Completed=6)
         java.util.Set<Long> validOrderIds = orders.stream()
-                .filter(o -> o.getStatus() != null && (o.getStatus() == 1 || o.getStatus() == 2 || o.getStatus() == 4))
+                .filter(o -> o.getStatus() != null && (o.getStatus() == 1 || o.getStatus() == 2 || o.getStatus() == 4 || o.getStatus() == 6))
                 .map(com.lqx.opera.entity.MallOrder::getId)
                 .collect(java.util.stream.Collectors.toSet());
 

@@ -1,8 +1,12 @@
 package com.lqx.opera.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.lqx.opera.common.dto.AdminLineageDTO;
+import com.lqx.opera.common.dto.ApprenticeInfoDTO;
 import com.lqx.opera.entity.ApprenticeshipApply;
+import com.lqx.opera.entity.ApprenticeshipRelation;
 import com.lqx.opera.entity.InheritorProfile;
 import com.lqx.opera.entity.SysUser;
 import com.lqx.opera.mapper.ApprenticeshipApplyMapper;
@@ -13,10 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import com.lqx.opera.common.dto.ApprenticeInfoDTO;
-import com.lqx.opera.entity.ApprenticeshipRelation;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -135,11 +137,10 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             SysUser student = sysUserService.getById(apply.getStudentId());
             String studentName = (student != null && student.getRealName() != null) ? student.getRealName() : (student != null ? student.getUsername() : "未知学徒");
             String content = "恭喜 " + studentName + " 正式拜入 " + mentorName + " 大师门下，传承非遗文化！";
-            // 假设使用系统账号或师父账号发布？这里使用师父账号发布
             communityService.createPost(mentorId, content, null);
 
             // Create Apprenticeship Relation
-            com.lqx.opera.entity.ApprenticeshipRelation relation = new com.lqx.opera.entity.ApprenticeshipRelation();
+            ApprenticeshipRelation relation = new ApprenticeshipRelation();
             relation.setMasterId(mentorId);
             relation.setStudentId(apply.getStudentId());
             relation.setRelationStatus(1); // 1-Teaching
@@ -159,23 +160,20 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
 
     @Override
     public List<ApprenticeInfoDTO> getMyApprentices(Long masterId) {
-        // 1. Query Relations
         List<ApprenticeshipRelation> relations = apprenticeshipRelationMapper.selectList(
                 new LambdaQueryWrapper<ApprenticeshipRelation>()
                         .eq(ApprenticeshipRelation::getMasterId, masterId)
-                        .in(ApprenticeshipRelation::getRelationStatus, 1, 2) // Teaching or Graduated
+                        .in(ApprenticeshipRelation::getRelationStatus, 1, 2)
         );
 
         if (relations.isEmpty()) {
             return new ArrayList<>();
         }
 
-        // 2. Collect Student IDs
         List<Long> studentIds = relations.stream()
                 .map(ApprenticeshipRelation::getStudentId)
                 .collect(Collectors.toList());
 
-        // 3. Batch Query Users and Profiles
         List<SysUser> users = sysUserService.listByIds(studentIds);
         Map<Long, SysUser> userMap = users.stream()
                 .collect(Collectors.toMap(SysUser::getUserId, u -> u));
@@ -187,7 +185,6 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
         Map<Long, InheritorProfile> profileMap = profiles.stream()
                 .collect(Collectors.toMap(InheritorProfile::getUserId, p -> p));
 
-        // 4. Build DTOs
         return relations.stream().map(relation -> {
             ApprenticeInfoDTO dto = new ApprenticeInfoDTO();
             Long sId = relation.getStudentId();
@@ -209,6 +206,71 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             }
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<AdminLineageDTO> getLineagePage(Page<ApprenticeshipRelation> page) {
+        // 1. Query Relation Page
+        Page<ApprenticeshipRelation> relationPage = apprenticeshipRelationMapper.selectPage(page, 
+            new LambdaQueryWrapper<ApprenticeshipRelation>().orderByDesc(ApprenticeshipRelation::getCreateTime));
+        
+        List<ApprenticeshipRelation> records = relationPage.getRecords();
+        if (records.isEmpty()) {
+            Page<AdminLineageDTO> dtoPage = new Page<>(page.getCurrent(), page.getSize(), 0);
+            return dtoPage;
+        }
+
+        // 2. Collect IDs
+        List<Long> masterIds = records.stream().map(ApprenticeshipRelation::getMasterId).distinct().collect(Collectors.toList());
+        List<Long> studentIds = records.stream().map(ApprenticeshipRelation::getStudentId).distinct().collect(Collectors.toList());
+        
+        List<Long> allUserIds = new ArrayList<>(masterIds);
+        allUserIds.addAll(studentIds);
+
+        // 3. Batch Query Users and Profiles
+        Map<Long, SysUser> userMap = sysUserService.listByIds(allUserIds).stream()
+                .collect(Collectors.toMap(SysUser::getUserId, u -> u));
+        
+        Map<Long, InheritorProfile> masterProfileMap = inheritorProfileService.list(
+                new LambdaQueryWrapper<InheritorProfile>().in(InheritorProfile::getUserId, masterIds)
+        ).stream().collect(Collectors.toMap(InheritorProfile::getUserId, p -> p));
+
+        // 4. Build DTOs
+        List<AdminLineageDTO> dtos = records.stream().map(r -> {
+            AdminLineageDTO dto = new AdminLineageDTO();
+            dto.setId(r.getId());
+            dto.setMasterId(r.getMasterId());
+            dto.setApprenticeId(r.getStudentId());
+            dto.setStartDate(r.getCreateTime());
+            dto.setStatus(r.getRelationStatus());
+
+            SysUser master = userMap.get(r.getMasterId());
+            if (master != null) {
+                dto.setMasterName(master.getRealName() != null ? master.getRealName() : master.getUsername());
+            }
+
+            SysUser student = userMap.get(r.getStudentId());
+            if (student != null) {
+                dto.setApprenticeName(student.getRealName() != null ? student.getRealName() : student.getUsername());
+            }
+
+            InheritorProfile mp = masterProfileMap.get(r.getMasterId());
+            if (mp != null) {
+                dto.setHeritageItem(mp.getGenre());
+            }
+
+            return dto;
+        }).collect(Collectors.toList());
+
+        Page<AdminLineageDTO> dtoPage = new Page<>(page.getCurrent(), page.getSize(), relationPage.getTotal());
+        dtoPage.setRecords(dtos);
+        
+        return dtoPage;
+    }
+
+    @Override
+    public boolean deleteRelation(Long id) {
+        return apprenticeshipRelationMapper.deleteById(id) > 0;
     }
 
     @Override

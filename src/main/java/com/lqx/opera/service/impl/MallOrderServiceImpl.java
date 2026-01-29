@@ -136,11 +136,6 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         order.setCreateTime(LocalDateTime.now());
         this.save(order);
 
-        // Shopping Reward (Cashback)
-        if (payAmount.compareTo(BigDecimal.ZERO) > 0) {
-            pointsService.earnPoints(userId, payAmount.intValue(), "购物返利 (订单 " + order.getOrderNo() + ")");
-        }
-
         Long orderId = order.getId();
         for (MallOrderItem oi : toSaveItems) {
             oi.setOrderId(orderId);
@@ -214,6 +209,12 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         
         order.setStatus(6); // 6-Completed
         this.updateById(order);
+
+        // Shopping Reward (Cashback) - Award points upon receipt confirmation
+        BigDecimal payAmount = order.getPayAmount();
+        if (payAmount != null && payAmount.compareTo(BigDecimal.ZERO) > 0) {
+            pointsService.earnPoints(userId, payAmount.intValue(), "购物返利 (订单 " + order.getOrderNo() + ")");
+        }
     }
 }
 

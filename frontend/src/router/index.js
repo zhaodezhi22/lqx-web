@@ -38,7 +38,7 @@ const routes = [
     component: () => import('../layouts/AdminLayout.vue'),
     redirect: '/admin/dashboard',
     children: [
-      { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/AdminDashboard.vue') },
+      { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/AuditorDashboard.vue') },
       { path: 'inheritor-review', name: 'AdminInheritorReview', component: () => import('../views/AdminInheritorReview.vue') },
       { path: 'resource-audit', name: 'AdminResourceAudit', component: () => import('../views/AdminResourceAudit.vue') },
       { path: 'event-audit', name: 'AdminEventAudit', component: () => import('../views/AdminEventAudit.vue') },

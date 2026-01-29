@@ -34,4 +34,18 @@ public interface ApprenticeshipService extends IService<ApprenticeshipApply> {
      * @return 徒弟列表信息
      */
     java.util.List<com.lqx.opera.common.dto.ApprenticeInfoDTO> getMyApprentices(Long masterId);
+
+    /**
+     * 分页查询所有师承关系 (管理员用)
+     * @param page 分页参数
+     * @return 丰富信息的列表
+     */
+    com.baomidou.mybatisplus.extension.plugins.pagination.Page<com.lqx.opera.common.dto.AdminLineageDTO> getLineagePage(com.baomidou.mybatisplus.extension.plugins.pagination.Page<com.lqx.opera.entity.ApprenticeshipRelation> page);
+
+    /**
+     * 删除师承关系
+     * @param id 关系ID
+     * @return 是否成功
+     */
+    boolean deleteRelation(Long id);
 }

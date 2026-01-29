@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lqx.opera.common.dto.GraphLinkDto;
 import com.lqx.opera.common.dto.GraphNodeDto;
 import com.lqx.opera.common.dto.GraphResultDto;
+import com.lqx.opera.entity.ApprenticeshipRelation;
 import com.lqx.opera.entity.InheritorProfile;
 import com.lqx.opera.entity.SysUser;
+import com.lqx.opera.mapper.ApprenticeshipRelationMapper;
 import com.lqx.opera.mapper.InheritorProfileMapper;
 import com.lqx.opera.service.InheritorProfileService;
 import com.lqx.opera.service.SysUserService;
@@ -18,9 +20,11 @@ import java.util.stream.Collectors;
 public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMapper, InheritorProfile> implements InheritorProfileService {
 
     private final SysUserService sysUserService;
+    private final ApprenticeshipRelationMapper apprenticeshipRelationMapper;
 
-    public InheritorProfileServiceImpl(SysUserService sysUserService) {
+    public InheritorProfileServiceImpl(SysUserService sysUserService, ApprenticeshipRelationMapper apprenticeshipRelationMapper) {
         this.sysUserService = sysUserService;
+        this.apprenticeshipRelationMapper = apprenticeshipRelationMapper;
     }
 
     @Override
@@ -48,6 +52,32 @@ public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMap
 
         if (allProfiles == null || allProfiles.isEmpty()) {
             return new GraphResultDto(Collections.emptyList(), Collections.emptyList());
+        }
+
+        // Sync with ApprenticeshipRelation in memory to ensure consistency
+        try {
+            List<ApprenticeshipRelation> relations = apprenticeshipRelationMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ApprenticeshipRelation>()
+                    .in(ApprenticeshipRelation::getRelationStatus, 1, 2));
+            
+            Map<Long, Long> studentToMasterUserMap = relations.stream()
+                    .collect(Collectors.toMap(ApprenticeshipRelation::getStudentId, ApprenticeshipRelation::getMasterId, (oldVal, newVal) -> newVal));
+            
+            Map<Long, Long> userToProfileIdMap = allProfiles.stream()
+                    .collect(Collectors.toMap(InheritorProfile::getUserId, InheritorProfile::getId, (oldVal, newVal) -> newVal));
+
+            for (InheritorProfile p : allProfiles) {
+                if (p.getMasterId() == null && studentToMasterUserMap.containsKey(p.getUserId())) {
+                    Long masterUserId = studentToMasterUserMap.get(p.getUserId());
+                    Long masterProfileId = userToProfileIdMap.get(masterUserId);
+                    if (masterProfileId != null) {
+                        p.setMasterId(masterProfileId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Log error but continue with existing data
+            System.err.println("Error syncing apprenticeship relations: " + e.getMessage());
         }
 
         // 2. 如果指定了根节点，则筛选该节点所属的整个家族树 (Find Root -> Find All Descendants of Root)

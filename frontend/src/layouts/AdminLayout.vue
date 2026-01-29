@@ -24,8 +24,6 @@
           <el-menu-item index="/admin/resource-audit">资源审核</el-menu-item>
           <el-menu-item index="/admin/event-audit">活动审核</el-menu-item>
           <el-menu-item index="/admin/product-audit">商品审核</el-menu-item>
-          <el-menu-item index="/admin/resources">资源库管理</el-menu-item>
-          <el-menu-item index="/admin/lineage">师承关系管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="2" v-if="role >= 2">
@@ -40,8 +38,10 @@
         <el-sub-menu index="3" v-if="role >= 2">
           <template #title>
             <el-icon><Warning /></el-icon>
-            <span>内容安全</span>
+            <span>内容治理</span>
           </template>
+          <el-menu-item index="/admin/resources">资源库管理</el-menu-item>
+          <el-menu-item index="/admin/lineage">师承关系管理</el-menu-item>
           <el-menu-item index="/admin/comments">评论审核</el-menu-item>
           <el-menu-item index="/admin/posts">帖子管理</el-menu-item>
         </el-sub-menu>
