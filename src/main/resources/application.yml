@@ -10,6 +10,10 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  sql:
+    init:
+      mode: always
+      continue-on-error: true
 jwt:
   secret: "ChangeThisSecretToAStrongOne123456"
   expire-minutes: 120

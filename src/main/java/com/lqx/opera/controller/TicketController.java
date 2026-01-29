@@ -23,10 +23,12 @@ public class TicketController {
 
     private final TicketService ticketService;
     private final PerformanceEventService performanceEventService;
+    private final com.lqx.opera.service.SysUserService sysUserService;
 
-    public TicketController(TicketService ticketService, PerformanceEventService performanceEventService) {
+    public TicketController(TicketService ticketService, PerformanceEventService performanceEventService, com.lqx.opera.service.SysUserService sysUserService) {
         this.ticketService = ticketService;
         this.performanceEventService = performanceEventService;
+        this.sysUserService = sysUserService;
     }
 
     @PostMapping("/lock")
@@ -133,13 +135,53 @@ public class TicketController {
     }
 
     @GetMapping("/upcoming")
-    public Result<List<PerformanceEvent>> upcoming(@RequestParam(required = false, defaultValue = "3") Integer limit) {
+    public Result<List<com.lqx.opera.dto.EventDetailDTO>> upcoming(@RequestParam(required = false, defaultValue = "3") Integer limit) {
         LambdaQueryWrapper<PerformanceEvent> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(PerformanceEvent::getStatus, 1)
                 .ge(PerformanceEvent::getShowTime, LocalDateTime.now())
                 .orderByAsc(PerformanceEvent::getShowTime);
         Page<PerformanceEvent> page = new Page<>(1, limit == null ? 3 : limit);
-        return Result.success(performanceEventService.page(page, wrapper).getRecords());
+        List<PerformanceEvent> events = performanceEventService.page(page, wrapper).getRecords();
+        
+        if (events.isEmpty()) {
+            return Result.success(java.util.Collections.emptyList());
+        }
+
+        // Collect publisher IDs
+        java.util.Set<Long> userIds = events.stream()
+            .map(PerformanceEvent::getPublisherId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+            
+        java.util.Map<Long, com.lqx.opera.entity.SysUser> userMap = new java.util.HashMap<>();
+        if (!userIds.isEmpty()) {
+            List<com.lqx.opera.entity.SysUser> users = sysUserService.listByIds(userIds);
+            for (com.lqx.opera.entity.SysUser u : users) {
+                userMap.put(u.getUserId(), u);
+            }
+        }
+
+        List<com.lqx.opera.dto.EventDetailDTO> dtos = events.stream().map(event -> {
+            com.lqx.opera.dto.EventDetailDTO dto = new com.lqx.opera.dto.EventDetailDTO();
+            org.springframework.beans.BeanUtils.copyProperties(event, dto);
+            
+            if (event.getPublisherId() != null) {
+                com.lqx.opera.entity.SysUser uploader = userMap.get(event.getPublisherId());
+                if (uploader != null) {
+                    if (uploader.getRole() == 2 || uploader.getRole() == 3) {
+                        dto.setPublisherName("官方发布");
+                        dto.setPublisherAvatar("https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png");
+                    } else {
+                        dto.setPublisherName(uploader.getRealName() != null ? uploader.getRealName() : uploader.getUsername());
+                        dto.setPublisherAvatar(uploader.getAvatar());
+                    }
+                    dto.setPublisherRole(uploader.getRole());
+                }
+            }
+            return dto;
+        }).collect(java.util.stream.Collectors.toList());
+
+        return Result.success(dtos);
     }
 
     /**

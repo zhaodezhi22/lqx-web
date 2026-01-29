@@ -53,6 +53,7 @@ const routes = [
       { path: 'logs', name: 'AdminSystemLogs', component: () => import('../views/AdminSystemLogs.vue') },
       { path: 'settings', name: 'AdminSettings', component: () => import('../views/AdminSettings.vue') },
       { path: 'home-content', name: 'AdminHomeContent', component: () => import('../views/AdminHomeContent.vue') },
+      { path: 'posts', name: 'AdminPostAudit', component: () => import('../views/AdminPostAudit.vue') },
     ]
   }
 ]

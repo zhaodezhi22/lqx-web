@@ -16,14 +16,17 @@
             <el-table-column prop="ticketPrice" label="票价" width="100" />
             <el-table-column prop="status" label="状态" width="100">
                <template #default="{ row }">
-                <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '售票中' : '已结束' }}</el-tag>
+                <el-tag :type="row.status === 1 ? 'success' : (row.status === 3 ? 'warning' : 'info')">
+                  {{ row.status === 1 ? '售票中' : (row.status === 3 ? '已下架' : '已结束') }}
+                </el-tag>
               </template>
             </el-table-column>
             <el-table-column label="操作" width="250">
               <template #default="{ row }">
                 <el-button link type="primary" @click="showEditDialog(row)">编辑</el-button>
                 <el-button link type="primary" @click="$router.push(`/admin/event/${row.eventId}/seats`)">座位图</el-button>
-                <el-button link type="warning">核销检票</el-button>
+                <el-button link type="warning" v-if="row.status === 1" @click="handleOffline(row)">下架</el-button>
+                <el-button link type="info" @click="openCheckIn">核销检票</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -81,19 +84,81 @@
         <el-form-item label="票价">
           <el-input v-model="form.ticketPrice" type="number" />
         </el-form-item>
+        <el-form-item label="座位布局">
+           <el-button type="primary" plain @click="openSeatEditor">
+             {{ form.seatLayoutJson && form.seatLayoutJson.length > 5 ? '修改座位布局' : '去设置座位布局' }}
+           </el-button>
+           <span style="margin-left: 10px; color: #666">
+             当前座位数: {{ form.totalSeats }}
+           </span>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submit">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- Seat Editor Dialog -->
+    <el-dialog v-model="seatDialogVisible" title="座位布局设置" width="80%" append-to-body>
+        <SeatEditor v-model="currentSeatLayout" />
+        <template #footer>
+            <el-button @click="seatDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="confirmSeatLayout">确认保存</el-button>
+        </template>
+    </el-dialog>
+    <!-- Check-in Dialog -->
+    <el-dialog v-model="checkInDialogVisible" title="门票核销" width="400px">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <p>请输入8位数字核销码或完整订单号</p>
+        </div>
+        <el-input v-model="checkInCode" placeholder="请输入核销码/订单号" size="large" clearable @keyup.enter="handleCheckIn">
+             <template #prefix>
+                <el-icon><Ticket /></el-icon>
+             </template>
+        </el-input>
+        <template #footer>
+            <el-button @click="checkInDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="handleCheckIn" :loading="checkInLoading">确认核销</el-button>
+        </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Ticket } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import SeatEditor from '../components/SeatEditor.vue'
+
+const checkInDialogVisible = ref(false)
+const checkInCode = ref('')
+const checkInLoading = ref(false)
+
+const openCheckIn = () => {
+    checkInCode.value = ''
+    checkInDialogVisible.value = true
+}
+
+const handleCheckIn = async () => {
+    if (!checkInCode.value) {
+        ElMessage.warning('请输入核销码')
+        return
+    }
+    checkInLoading.value = true
+    try {
+        await request.post('/ticket/verify', { orderNo: checkInCode.value })
+        ElMessage.success('核销成功！用户积分已到账')
+        checkInCode.value = ''
+        checkInDialogVisible.value = false
+        // Refresh list if needed, but not strictly necessary as this is global check-in
+    } catch (e) {
+        ElMessage.error(e.response?.data?.message || '核销失败，请检查核销码')
+    } finally {
+        checkInLoading.value = false
+    }
+}
 
 const activeTab = ref('events')
 const list = ref([])
@@ -111,8 +176,53 @@ const form = reactive({
   showTime: '',
   ticketPrice: '',
   totalSeats: 200, // Default seats
-  status: 1
+  status: 1,
+  seatLayoutJson: '[]'
 })
+
+const seatDialogVisible = ref(false)
+const currentSeatLayout = ref([])
+
+const openSeatEditor = async () => {
+  console.log('Opening seat editor, json:', form.seatLayoutJson)
+  if (form.seatLayoutJson && typeof form.seatLayoutJson === 'string' && form.seatLayoutJson.length > 5) {
+    try {
+      currentSeatLayout.value = JSON.parse(form.seatLayoutJson)
+    } catch (e) {
+      console.error('JSON parse error', e)
+      currentSeatLayout.value = []
+    }
+  } else {
+    currentSeatLayout.value = []
+  }
+  await nextTick()
+  seatDialogVisible.value = true
+}
+
+const confirmSeatLayout = () => {
+  form.seatLayoutJson = JSON.stringify(currentSeatLayout.value)
+  form.totalSeats = currentSeatLayout.value.length
+  seatDialogVisible.value = false
+  ElMessage.success('座位布局已保存')
+}
+
+const handleOffline = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定要强制下架该活动吗？下架后用户将无法购买。', '警告', {
+      type: 'warning',
+      confirmButtonText: '确定下架',
+      cancelButtonText: '取消'
+    })
+    
+    await request.post(`/admin/event/offline/${row.eventId}`)
+    ElMessage.success('活动已下架')
+    fetchList()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.response?.data?.message || '操作失败')
+    }
+  }
+}
 
 const fetchList = async () => {
   loading.value = true
@@ -191,13 +301,15 @@ const showAddDialog = () => {
   form.venue = ''
   form.showTime = ''
   form.ticketPrice = ''
-  form.totalSeats = 200
+  form.totalSeats = 0
   form.status = 1
+  form.seatLayoutJson = '[]'
   dialogVisible.value = true
 }
 
 const showEditDialog = (row) => {
   Object.assign(form, row)
+  if (!form.seatLayoutJson) form.seatLayoutJson = '[]'
   dialogVisible.value = true
 }
 

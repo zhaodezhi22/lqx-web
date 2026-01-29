@@ -189,6 +189,10 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         String orderNo = "TKT" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         order.setOrderNo(orderNo);
         
+        // Generate 8-digit random numeric Voucher Code
+        String voucherCode = String.valueOf((int)((Math.random() * 9 + 1) * 10000000));
+        order.setQrCode(voucherCode);
+        
         order.setUserId(userId);
         order.setEventId(dto.getEventId());
         order.setSeatInfo(dto.getSeatInfo());
@@ -205,12 +209,15 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
     }
 
     @Override
-    public void verifyTicket(String orderNo, Long verifierId) {
+    public void verifyTicket(String code, Long verifierId) {
+        // Try to find by OrderNo first, then by Voucher Code (qrCode)
         TicketOrder order = this.getOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<TicketOrder>()
-                .eq(TicketOrder::getOrderNo, orderNo));
+                .eq(TicketOrder::getOrderNo, code)
+                .or()
+                .eq(TicketOrder::getQrCode, code));
         
         if (order == null) {
-            throw new RuntimeException("订单不存在");
+            throw new RuntimeException("无效的核销码或订单号");
         }
         
         if (order.getStatus() == 2) {
@@ -228,7 +235,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         this.updateById(order);
 
         // Earn Points for Event Participation
-        pointsService.earnPoints(order.getUserId(), 100, "活动参与奖励 (门票 " + orderNo + ")");
+        pointsService.earnPoints(order.getUserId(), 100, "活动参与奖励 (核销码 " + order.getQrCode() + ")");
     }
 
     @Override

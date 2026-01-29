@@ -19,7 +19,7 @@
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
             <el-button type="success" size="small" @click="handle(row, 'pass')">通过</el-button>
-            <el-button type="danger" size="small" @click="handle(row, 'block')">违规屏蔽</el-button>
+            <el-button type="danger" size="small" @click="handle(row, 'reject')">拒绝</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -52,7 +52,7 @@ const fetchList = async () => {
 const handle = async (row, action) => {
   try {
     await request.put(`/admin/comments/${row.id}/audit`, { action })
-    ElMessage.success(action === 'pass' ? '已通过' : '已屏蔽')
+    ElMessage.success(action === 'pass' ? '已通过' : '已拒绝')
     fetchList()
   } catch (e) {
     ElMessage.error('操作失败')

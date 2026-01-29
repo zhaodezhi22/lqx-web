@@ -101,6 +101,7 @@
                 <el-table-column label="状态" width="100">
                   <template #default="{ row }">
                     <el-tag type="success" v-if="row.status === 1">已支付</el-tag>
+                    <el-tag type="success" v-else-if="row.status === 2">已完成</el-tag>
                     <el-tag type="warning" v-else-if="row.status === 0">待支付</el-tag>
                     <el-tag type="warning" v-else-if="row.status === 3">退款审核中</el-tag>
                     <el-tag type="info" v-else-if="row.status === 4">已退票</el-tag>
@@ -110,6 +111,7 @@
                 <el-table-column label="操作" width="220">
                   <template #default="{ row }">
                     <el-button link type="primary" @click="$router.push(`/events/${row.eventId}`)">查看演出</el-button>
+                    <el-button link type="success" v-if="row.status === 1" @click="openVoucher(row)">查看凭证</el-button>
                     <el-button link type="danger" v-if="row.status === 1" @click="handleRefund(row)">退票</el-button>
                     <el-button link type="primary" v-if="row.status === 0">去支付</el-button>
                   </template>
@@ -280,6 +282,20 @@
       </el-col>
     </el-row>
 
+    <!-- Voucher Dialog -->
+    <el-dialog v-model="voucherDialogVisible" title="电子票凭证" width="360px">
+      <div style="text-align: center; padding: 20px;">
+        <div style="font-size: 16px; color: #666; margin-bottom: 10px;">请向工作人员出示此码</div>
+        <div style="font-size: 32px; font-weight: bold; color: #409EFF; letter-spacing: 2px; margin: 20px 0; border: 2px dashed #409EFF; padding: 10px; border-radius: 8px;">
+          {{ currentVoucher }}
+        </div>
+        <div style="margin-top: 20px;">
+           <img :src="`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${currentVoucher}`" style="width: 200px; height: 200px;" />
+        </div>
+        <div style="font-size: 12px; color: #999; margin-top: 10px;">核销码仅限使用一次</div>
+      </div>
+    </el-dialog>
+
     <!-- Homework Submit Dialog -->
     <el-dialog v-model="submitDialogVisible" :title="'提交作业: ' + submitForm.taskTitle" width="600px">
       <el-form :model="submitForm" label-width="100px">
@@ -410,6 +426,19 @@ const ticketsLoading = ref(false)
 const assignments = ref([])
 const assignmentsLoading = ref(false)
 const hasMaster = ref(false)
+
+const voucherDialogVisible = ref(false)
+const currentVoucher = ref('')
+
+const openVoucher = (row) => {
+  if (row.qrCode) {
+    currentVoucher.value = row.qrCode
+  } else {
+    currentVoucher.value = row.orderNo // Fallback
+  }
+  voucherDialogVisible.value = true
+}
+
 const submitDialogVisible = ref(false)
 const submitForm = reactive({
   assignmentId: null,

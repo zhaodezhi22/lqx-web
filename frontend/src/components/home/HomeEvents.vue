@@ -17,7 +17,10 @@
             </div>
             
             <div class="event-info">
-              <h3 class="title" :title="ev.title">{{ ev.title }}</h3>
+              <div class="title-row">
+                <h3 class="title" :title="ev.title">{{ ev.title }}</h3>
+                <el-tag v-if="ev.publisherRole === 2 || ev.publisherRole === 3" type="warning" effect="dark" size="small" class="official-tag">官方</el-tag>
+              </div>
               
               <div class="meta-row">
                 <el-icon><Location /></el-icon>
@@ -223,19 +226,26 @@ onMounted(() => {
   flex-direction: column;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
 .title {
-  margin: 0 0 12px 0;
   font-size: 16px;
   font-weight: bold;
   color: #333;
-  line-height: 1.4;
-  height: 44px; /* Limit to 2 lines */
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin: 0;
 }
-
+.official-tag {
+  margin-left: 8px;
+  flex-shrink: 0;
+}
 .meta-row {
   display: flex;
   align-items: center;

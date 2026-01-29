@@ -216,10 +216,16 @@
           <el-table-column prop="venue" label="地点" />
           <el-table-column prop="status" label="状态">
              <template #default="scope">
-               <el-tag :type="scope.row.status === 1 ? 'success' : 'warning'">
-                 {{ scope.row.status === 1 ? '已发布' : '审核中' }}
+               <el-tag :type="getStatusType(scope.row.status)">
+                 {{ getStatusLabel(scope.row.status) }}
                </el-tag>
              </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150">
+            <template #default="scope">
+              <el-button link type="primary" @click="showActivityDialog(scope.row)">编辑</el-button>
+              <el-button v-if="scope.row.status === 1" link type="warning" @click="handleOffline(scope.row)">下架</el-button>
+            </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
@@ -462,14 +468,27 @@
         <el-form-item label="票价">
           <el-input-number v-model="activityForm.ticketPrice" :min="0" />
         </el-form-item>
-        <el-form-item label="总座位">
-          <el-input-number v-model="activityForm.totalSeats" :min="1" />
+        <el-form-item label="座位布局">
+           <el-button type="primary" plain @click="openSeatEditor">
+             {{ activityForm.seatLayoutJson && activityForm.seatLayoutJson.length > 5 ? '修改座位布局' : '去设置座位布局' }}
+           </el-button>
+           <span style="margin-left: 10px; color: #666">
+             当前座位数: {{ activityForm.totalSeats }}
+           </span>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="activitySubmitting" @click="submitActivity">确认发布</el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog v-model="seatDialogVisible" title="座位布局设置" width="80%" append-to-body>
+        <SeatEditor v-model="currentSeatLayout" />
+        <template #footer>
+            <el-button @click="seatDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="confirmSeatLayout">确认保存</el-button>
+        </template>
     </el-dialog>
 
     <!-- Ritual Animation Overlay -->
@@ -518,11 +537,11 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Refresh, Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
-import LineageTree from '../components/LineageTree.vue'
+import SeatEditor from '../components/SeatEditor.vue'
 
 const activeTab = ref('profile')
 
@@ -539,6 +558,7 @@ const getStatusLabel = (status) => {
     if (status === 0) return '审核中'
     if (status === 1) return '已上架'
     if (status === 2) return '未通过'
+    if (status === 3) return '已下架'
     return '未知'
 }
 
@@ -546,6 +566,7 @@ const getStatusType = (status) => {
     if (status === 0) return 'warning'
     if (status === 1) return 'success'
     if (status === 2) return 'danger'
+    if (status === 3) return 'info'
     return 'info'
 }
 
@@ -816,12 +837,38 @@ const activityLoading = ref(false)
 const dialogVisible = ref(false)
 const activitySubmitting = ref(false)
 const activityForm = reactive({
+  eventId: null,
   title: '',
   showTime: '',
   venue: '',
   ticketPrice: 0,
-  totalSeats: 100
+  totalSeats: 100,
+  seatLayoutJson: '[]'
 })
+
+const seatDialogVisible = ref(false)
+const currentSeatLayout = ref([])
+
+const openSeatEditor = async () => {
+    if (activityForm.seatLayoutJson && typeof activityForm.seatLayoutJson === 'string' && activityForm.seatLayoutJson.length > 5) {
+        try {
+            currentSeatLayout.value = JSON.parse(activityForm.seatLayoutJson)
+        } catch (e) {
+            currentSeatLayout.value = []
+        }
+    } else {
+        currentSeatLayout.value = []
+    }
+    await nextTick()
+    seatDialogVisible.value = true
+}
+
+const confirmSeatLayout = () => {
+    activityForm.seatLayoutJson = JSON.stringify(currentSeatLayout.value)
+    activityForm.totalSeats = currentSeatLayout.value.length
+    seatDialogVisible.value = false
+    ElMessage.success('座位布局已保存')
+}
 
 const fetchActivities = async () => {
     activityLoading.value = true
@@ -835,12 +882,24 @@ const fetchActivities = async () => {
     }
 }
 
-const showActivityDialog = () => {
-    activityForm.title = ''
-    activityForm.showTime = ''
-    activityForm.venue = ''
-    activityForm.ticketPrice = 0
-    activityForm.totalSeats = 100
+const showActivityDialog = (row = null) => {
+    if (row) {
+        activityForm.eventId = row.eventId
+        activityForm.title = row.title
+        activityForm.showTime = row.showTime
+        activityForm.venue = row.venue
+        activityForm.ticketPrice = row.ticketPrice
+        activityForm.totalSeats = row.totalSeats
+        activityForm.seatLayoutJson = row.seatLayoutJson || '[]'
+    } else {
+        activityForm.eventId = null
+        activityForm.title = ''
+        activityForm.showTime = ''
+        activityForm.venue = ''
+        activityForm.ticketPrice = 0
+        activityForm.totalSeats = 100
+        activityForm.seatLayoutJson = '[]'
+    }
     dialogVisible.value = true
 }
 
@@ -851,14 +910,37 @@ const submitActivity = async () => {
     }
     activitySubmitting.value = true
     try {
-        await request.post('/events/create', activityForm)
-        ElMessage.success('发布成功，请等待管理员审核')
+        if (activityForm.eventId) {
+            // Ensure ID is passed for update
+            await request.put('/events/update', { ...activityForm })
+            ElMessage.success('更新成功')
+        } else {
+            await request.post('/events/create', activityForm)
+            ElMessage.success('发布成功，请等待管理员审核')
+        }
         dialogVisible.value = false
         fetchActivities()
     } catch (e) {
-        ElMessage.error(e.response?.data?.message || '发布失败')
+        ElMessage.error(e.response?.data?.message || '操作失败')
     } finally {
         activitySubmitting.value = false
+    }
+}
+
+const handleOffline = async (row) => {
+    try {
+        await ElMessageBox.confirm('确定要下架该活动吗？下架后将不再展示给用户。', '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+        })
+        await request.post(`/events/offline/${row.eventId}`)
+        ElMessage.success('下架成功')
+        fetchActivities()
+    } catch (e) {
+        if (e !== 'cancel') {
+             ElMessage.error(e.response?.data?.message || '操作失败')
+        }
     }
 }
 

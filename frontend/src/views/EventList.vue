@@ -9,9 +9,14 @@
       <el-col :span="8" v-for="ev in events" :key="ev.eventId">
         <el-card class="event-card" shadow="hover">
           <div class="event-head">
-            <h3>{{ ev.title }}</h3>
-            <el-tag type="success" v-if="ev.status === 1">开放售票</el-tag>
-            <el-tag type="info" v-else>已结束/未开放</el-tag>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3>{{ ev.title }}</h3>
+              <el-tag v-if="ev.publisherRole === 2 || ev.publisherRole === 3" type="warning" effect="dark" size="small">官方</el-tag>
+            </div>
+            <div>
+              <el-tag type="success" v-if="ev.status === 1">开放售票</el-tag>
+              <el-tag type="info" v-else>已结束/未开放</el-tag>
+            </div>
           </div>
           <div class="event-body">
             <p>地点：{{ ev.venue }}</p>
@@ -114,6 +119,15 @@ onMounted(fetchEvents)
 .event-body p {
   margin: 6px 0;
   color: #555;
+}
+.publisher-info {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.publisher-name {
+  font-size: 14px;
+  color: #333;
 }
 .event-actions {
   margin-top: 10px;

@@ -43,6 +43,7 @@
             <span>内容安全</span>
           </template>
           <el-menu-item index="/admin/comments">评论审核</el-menu-item>
+          <el-menu-item index="/admin/posts">帖子管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="5" v-if="role >= 2">

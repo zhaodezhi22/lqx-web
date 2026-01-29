@@ -3,10 +3,11 @@
     <div v-if="event">
       <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
       <h2>{{ event.title }}</h2>
-      <div class="publisher-info" v-if="event.publisherId && event.publisherName" @click="goProfile(event.publisherId)">
+      <div class="publisher-info" v-if="event.publisherId && event.publisherName" @click="goProfile(event.publisherId, event.publisherRole)">
         <el-avatar :size="32" :src="event.publisherAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
         <span class="name">{{ event.publisherName }}</span>
         <el-tag size="small" v-if="event.publisherRole === 1">传承人</el-tag>
+        <el-tag size="small" type="warning" effect="dark" v-if="event.publisherRole === 2 || event.publisherRole === 3">官方</el-tag>
       </div>
       <div class="publisher-info-disabled" v-else-if="event.publisherId">
         <el-avatar :size="32" src="https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png" />
@@ -57,7 +58,8 @@ const selected = ref([])
 const buying = ref(false)
 const loading = ref(false)
 
-const goProfile = (userId) => {
+const goProfile = (userId, role) => {
+  if (role === 2 || role === 3) return // Don't navigate for official accounts
   router.push({ name: 'UserPublicProfile', params: { id: userId } })
 }
 

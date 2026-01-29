@@ -28,5 +28,21 @@ public class DbMigrationConfig implements CommandLineRunner {
         } catch (Exception e) {
             // Ignore if exists
         }
+
+        try {
+            jdbcTemplate.execute("ALTER TABLE community_post ADD COLUMN status TINYINT DEFAULT 0 COMMENT '0-Pending, 1-Approved, 2-Rejected'");
+            System.out.println("Migration: Added status to community_post");
+        } catch (Exception e) {
+            // Ignore
+        }
+
+        try {
+            // Update default value to 1 (Approved) and auto-approve existing pending posts
+            jdbcTemplate.execute("ALTER TABLE community_post MODIFY COLUMN status TINYINT DEFAULT 1 COMMENT '0-Pending, 1-Approved, 2-Rejected'");
+            jdbcTemplate.execute("UPDATE community_post SET status = 1 WHERE status = 0");
+            System.out.println("Migration: Updated community_post status default to 1 and approved pending posts");
+        } catch (Exception e) {
+            System.err.println("Migration warning: " + e.getMessage());
+        }
     }
 }
