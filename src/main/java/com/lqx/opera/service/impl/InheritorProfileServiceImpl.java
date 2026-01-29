@@ -108,7 +108,8 @@ public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMap
                     profile.getLevel(),
                     profile.getGenre(),
                     profile.getArtisticCareer(),
-                    rootId != null && profile.getId().equals(rootId)
+                    rootId != null && profile.getId().equals(rootId),
+                    profile.getUserId()
             ));
 
             // 构建连线 (如果存在师父，且师父也在当前展示的图谱中)

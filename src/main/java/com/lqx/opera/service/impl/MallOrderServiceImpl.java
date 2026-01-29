@@ -11,6 +11,7 @@ import com.lqx.opera.service.MallOrderItemService;
 import com.lqx.opera.service.MallOrderService;
 import com.lqx.opera.service.ProductService;
 import com.lqx.opera.service.SysUserService;
+import com.lqx.opera.service.PointsService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,22 +28,45 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
     private final MallOrderItemService mallOrderItemService;
     private final SysUserService sysUserService;
     private final PointsLogMapper pointsLogMapper;
+    private final PointsService pointsService;
+    private final com.lqx.opera.service.UserAddressService userAddressService;
 
     public MallOrderServiceImpl(ProductService productService, 
                                 MallOrderItemService mallOrderItemService,
                                 SysUserService sysUserService,
-                                PointsLogMapper pointsLogMapper) {
+                                PointsLogMapper pointsLogMapper,
+                                PointsService pointsService,
+                                com.lqx.opera.service.UserAddressService userAddressService) {
         this.productService = productService;
         this.mallOrderItemService = mallOrderItemService;
         this.sysUserService = sysUserService;
         this.pointsLogMapper = pointsLogMapper;
+        this.pointsService = pointsService;
+        this.userAddressService = userAddressService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public MallOrder createOrder(Long userId, List<CreateMallOrderItem> items, Integer usedPoints) {
+    public MallOrder createOrder(Long userId, List<CreateMallOrderItem> items, Integer usedPoints, Long addressId) {
         BigDecimal total = BigDecimal.ZERO;
         List<MallOrderItem> toSaveItems = new ArrayList<>();
+        
+        // Resolve Address
+        String addressSnapshot = "";
+        if (addressId != null) {
+            com.lqx.opera.entity.UserAddress addr = userAddressService.getById(addressId);
+            if (addr == null || !addr.getUserId().equals(userId)) {
+                throw new RuntimeException("收货地址无效");
+            }
+            addressSnapshot = String.format("%s %s %s %s %s %s", 
+                addr.getReceiverName(), addr.getPhone(), 
+                addr.getProvince() != null ? addr.getProvince() : "",
+                addr.getCity() != null ? addr.getCity() : "",
+                addr.getDistrict() != null ? addr.getDistrict() : "",
+                addr.getDetailAddress());
+        } else {
+             throw new RuntimeException("请选择收货地址");
+        }
 
         for (CreateMallOrderItem item : items) {
             // 锁定库存检查（简单的先查询再更新，高并发需用乐观锁或Redis，此处按题目要求先做基本事务）
@@ -50,6 +74,11 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
             if (p == null || (p.getStatus() != null && p.getStatus() == 0)) {
                 throw new RuntimeException("商品不存在或已下架 " + item.getProductId());
             }
+            // Prevent buying own product
+            if (p.getSellerId() != null && p.getSellerId().equals(userId)) {
+                throw new RuntimeException("不能购买自己发布的商品: " + p.getName());
+            }
+
             if (p.getStock() < item.getQuantity()) {
                 throw new RuntimeException("库存不足: " + p.getName());
             }
@@ -76,41 +105,22 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         // Calculate Points
         BigDecimal discount = BigDecimal.ZERO;
         if (usedPoints != null && usedPoints > 0) {
-            com.lqx.opera.entity.SysUser user = sysUserService.getById(userId);
-            if (user == null) throw new RuntimeException("用户不存在");
-            if (user.getCurrentPoints() == null || user.getCurrentPoints() < usedPoints) {
+            if (usedPoints < 1000) {
+                throw new RuntimeException("积分抵扣最低1000起");
+            }
+
+            // Deduct Points
+            boolean deducted = pointsService.deductPoints(userId, usedPoints, "购物抵扣");
+            if (!deducted) {
                 throw new RuntimeException("积分余额不足");
             }
             
-            // Assume 100 points = 1.00 Unit (Adjust rate as needed)
-            discount = new BigDecimal(usedPoints).divide(new BigDecimal(100), 2, java.math.RoundingMode.HALF_UP);
+            // 1000 points = 1.00 Unit
+            discount = new BigDecimal(usedPoints).divide(new BigDecimal(1000), 2, java.math.RoundingMode.HALF_UP);
             
             if (discount.compareTo(total) > 0) {
-                // discount = total; // Optional: Cap discount at total amount?
-                // Or throw error if points exceed amount? Let's cap it or just allow it (0 pay).
-                // Let's simple check: cannot exceed total?
-                // For now, let's assume valid usedPoints input.
-                // Or better:
-                // if (discount.compareTo(total) > 0) discount = total; 
-                // But we must deduct correct points.
-                // Let's strict check:
-                if (discount.compareTo(total) > 0) {
-                    throw new RuntimeException("积分抵扣金额不能超过订单总额");
-                }
+                throw new RuntimeException("积分抵扣金额不能超过订单总额");
             }
-            
-            // Deduct Points
-            user.setCurrentPoints(user.getCurrentPoints() - usedPoints);
-            sysUserService.updateById(user);
-            
-            // Log Points
-            com.lqx.opera.entity.PointsLog log = new com.lqx.opera.entity.PointsLog();
-            log.setUserId(userId);
-            log.setChangePoint(-usedPoints);
-            log.setReason("购物抵扣");
-            log.setCreatedTime(new java.util.Date()); // Use Date or LocalDateTime depending on entity
-            // PointsLog uses Date according to previous read.
-            pointsLogMapper.insert(log);
         }
 
         MallOrder order = new MallOrder();
@@ -119,10 +129,17 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         order.setTotalAmount(total);
         order.setPointsDiscount(discount);
         order.setUsedPoints(usedPoints != null ? usedPoints : 0);
-        order.setPayAmount(total.subtract(discount));
+        order.setAddressSnapshot(addressSnapshot);
+        BigDecimal payAmount = total.subtract(discount);
+        order.setPayAmount(payAmount);
         order.setStatus(1); // 模拟支付成功 -> 已支付待发货
         order.setCreateTime(LocalDateTime.now());
         this.save(order);
+
+        // Shopping Reward (Cashback)
+        if (payAmount.compareTo(BigDecimal.ZERO) > 0) {
+            pointsService.earnPoints(userId, payAmount.intValue(), "购物返利 (订单 " + order.getOrderNo() + ")");
+        }
 
         Long orderId = order.getId();
         for (MallOrderItem oi : toSaveItems) {
@@ -179,6 +196,24 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
             order.setStatus(1);
         }
         return this.updateById(order);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void confirmReceipt(Long orderId, Long userId) {
+        MallOrder order = this.getById(orderId);
+        if (order == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        if (!order.getUserId().equals(userId)) {
+            throw new RuntimeException("无权操作此订单");
+        }
+        if (order.getStatus() != 2) {
+            throw new RuntimeException("订单未发货或已确认收货");
+        }
+        
+        order.setStatus(6); // 6-Completed
+        this.updateById(order);
     }
 }
 

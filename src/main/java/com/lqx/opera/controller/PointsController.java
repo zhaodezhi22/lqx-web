@@ -1,29 +1,50 @@
 package com.lqx.opera.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lqx.opera.common.Result;
-import com.lqx.opera.common.dto.CheckInRequest;
 import com.lqx.opera.entity.PointsLog;
 import com.lqx.opera.service.PointsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.Map;
 
 @RestController
+@RequestMapping("/api/points")
 public class PointsController {
 
     @Autowired
     private PointsService pointsService;
 
-    @GetMapping("/api/points/history")
-    public Result<List<PointsLog>> getHistory(@RequestParam Long userId) {
-        return Result.success(pointsService.getPointsHistory(userId));
+    @PostMapping("/signin")
+    public Result<Map<String, Object>> signIn(@RequestParam Long userId) {
+        try {
+            Map<String, Object> result = pointsService.signIn(userId);
+            return Result.success(result);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
     }
 
-    @PostMapping("/api/points/daily-check-in")
-    public Result<String> dailyCheckIn(@RequestBody CheckInRequest request) {
-        String msg = pointsService.dailyCheckIn(request.getUserId());
-        // 如果是“今日已签到”，也许不算错误，只是提示。
-        return Result.success(msg);
+    @GetMapping("/info")
+    public Result<Map<String, Object>> getInfo(@RequestParam Long userId) {
+        return Result.success(pointsService.getSignInInfo(userId));
+    }
+
+    @GetMapping("/log")
+    public Result<Page<PointsLog>> getLog(@RequestParam Long userId,
+                                          @RequestParam(defaultValue = "1") Integer page,
+                                          @RequestParam(defaultValue = "10") Integer size) {
+        Page<PointsLog> pageInfo = new Page<>(page, size);
+        return Result.success(pointsService.page(pageInfo, new LambdaQueryWrapper<PointsLog>()
+                .eq(PointsLog::getUserId, userId)
+                .orderByDesc(PointsLog::getCreatedTime)));
+    }
+
+    @PostMapping("/resource-view")
+    public Result<Boolean> resourceView(@RequestParam Long userId) {
+        boolean rewarded = pointsService.recordDailyAction(userId, "资源观看", 3, 10);
+        return Result.success(rewarded);
     }
 }

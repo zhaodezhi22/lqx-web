@@ -1,6 +1,7 @@
 package com.lqx.opera.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -22,6 +23,13 @@ public class SysUser implements Serializable {
     private String email;
     private Integer role;
     private Integer currentPoints;
+    
+    @TableField("continuous_sign_days")
+    private Integer continuousSignDays;
+    
+    @TableField("last_sign_date")
+    private java.time.LocalDate lastSignDate;
+
     private Integer status;
     private LocalDateTime createdTime;
 }

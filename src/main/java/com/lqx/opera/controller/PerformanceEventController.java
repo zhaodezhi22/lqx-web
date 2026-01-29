@@ -4,6 +4,7 @@ import com.lqx.opera.common.Result;
 import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.entity.PerformanceEvent;
 import com.lqx.opera.service.PerformanceEventService;
+import com.lqx.opera.service.SysUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -15,9 +16,11 @@ import java.util.List;
 public class PerformanceEventController {
 
     private final PerformanceEventService performanceEventService;
+    private final SysUserService sysUserService;
 
-    public PerformanceEventController(PerformanceEventService performanceEventService) {
+    public PerformanceEventController(PerformanceEventService performanceEventService, SysUserService sysUserService) {
         this.performanceEventService = performanceEventService;
+        this.sysUserService = sysUserService;
     }
 
     @GetMapping
@@ -64,7 +67,19 @@ public class PerformanceEventController {
         if (event == null) {
             return Result.fail(404, "演出不存在");
         }
-        return Result.success(event);
+        
+        com.lqx.opera.dto.EventDetailDTO dto = new com.lqx.opera.dto.EventDetailDTO();
+        org.springframework.beans.BeanUtils.copyProperties(event, dto);
+        
+        if (event.getPublisherId() != null) {
+            com.lqx.opera.entity.SysUser uploader = sysUserService.getById(event.getPublisherId());
+            if (uploader != null) {
+                dto.setPublisherName(uploader.getRealName() != null ? uploader.getRealName() : uploader.getUsername());
+                dto.setPublisherAvatar(uploader.getAvatar());
+                dto.setPublisherRole(uploader.getRole());
+            }
+        }
+        return Result.success(dto);
     }
 
     @PostMapping("/create")

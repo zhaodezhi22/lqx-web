@@ -45,7 +45,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
             if (seller != null) {
                 ProductDetailDTO.SellerInfo sellerInfo = new ProductDetailDTO.SellerInfo();
                 sellerInfo.setUserId(seller.getUserId());
-                sellerInfo.setNickname(seller.getUsername()); // Or realName
+                sellerInfo.setNickname(seller.getRealName() != null ? seller.getRealName() : seller.getUsername());
                 sellerInfo.setAvatar(seller.getAvatar());
                 dto.setSeller(sellerInfo);
             }

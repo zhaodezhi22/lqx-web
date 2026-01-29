@@ -51,8 +51,21 @@ public class HeritageResourceController {
         if (resource == null) {
             return Result.fail(404, "资源不存在");
         }
-        // Allow viewing all statuses
-        return Result.success(resource);
+        
+        // Enrich with uploader info
+        com.lqx.opera.dto.ResourceDetailDTO dto = new com.lqx.opera.dto.ResourceDetailDTO();
+        org.springframework.beans.BeanUtils.copyProperties(resource, dto);
+        
+        if (resource.getUploaderId() != null) {
+            com.lqx.opera.entity.SysUser uploader = sysUserService.getById(resource.getUploaderId());
+            if (uploader != null) {
+                dto.setUploaderName(uploader.getRealName() != null ? uploader.getRealName() : uploader.getUsername());
+                dto.setUploaderAvatar(uploader.getAvatar());
+                dto.setUploaderRole(uploader.getRole());
+            }
+        }
+        
+        return Result.success(dto);
     }
 
     /**

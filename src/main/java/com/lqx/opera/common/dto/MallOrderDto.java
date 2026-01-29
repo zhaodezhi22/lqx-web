@@ -16,4 +16,6 @@ public class MallOrderDto {
     private String payTime;
     private String shipTime;
     private String createTime;
+    private String deliveryCompany;
+    private String deliveryNo;
 }

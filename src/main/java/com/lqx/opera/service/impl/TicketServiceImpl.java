@@ -10,6 +10,7 @@ import com.lqx.opera.entity.TicketOrder;
 import com.lqx.opera.mapper.TicketOrderMapper;
 import com.lqx.opera.service.PerformanceEventService;
 import com.lqx.opera.service.TicketService;
+import com.lqx.opera.service.PointsService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +27,12 @@ import java.util.stream.Collectors;
 public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrder> implements TicketService {
 
     private final PerformanceEventService performanceEventService;
+    private final PointsService pointsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public TicketServiceImpl(PerformanceEventService performanceEventService) {
+    public TicketServiceImpl(PerformanceEventService performanceEventService, PointsService pointsService) {
         this.performanceEventService = performanceEventService;
+        this.pointsService = pointsService;
     }
 
     @Override
@@ -223,6 +226,9 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         order.setVerifyTime(LocalDateTime.now());
         
         this.updateById(order);
+
+        // Earn Points for Event Participation
+        pointsService.earnPoints(order.getUserId(), 100, "活动参与奖励 (门票 " + orderNo + ")");
     }
 
     @Override

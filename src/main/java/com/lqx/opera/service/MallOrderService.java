@@ -10,7 +10,7 @@ public interface MallOrderService extends IService<MallOrder> {
     /**
      * 创建订单
      */
-    MallOrder createOrder(Long userId, List<CreateMallOrderItem> items, Integer usedPoints);
+    MallOrder createOrder(Long userId, List<CreateMallOrderItem> items, Integer usedPoints, Long addressId);
 
     /**
      * 申请退款
@@ -21,5 +21,10 @@ public interface MallOrderService extends IService<MallOrder> {
      * 审核退款
      */
     boolean auditRefund(Long orderId, boolean pass);
+
+    /**
+     * 确认收货
+     */
+    void confirmReceipt(Long orderId, Long userId);
 }
 

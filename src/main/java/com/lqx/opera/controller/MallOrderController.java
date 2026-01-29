@@ -106,6 +106,31 @@ public class MallOrderController {
         }
     }
 
+    /**
+     * 用户确认收货
+     */
+    @PostMapping("/confirm/{id}")
+    @RequireRole({0, 1, 2, 3})
+    public Result<Boolean> confirmReceipt(@PathVariable Long id, HttpServletRequest request) {
+        Object userIdObj = request.getAttribute("userId");
+        if (userIdObj == null) {
+            return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
+        }
+        Long userId;
+        if (userIdObj instanceof Number) {
+            userId = ((Number) userIdObj).longValue();
+        } else {
+            userId = Long.parseLong(userIdObj.toString());
+        }
+
+        try {
+            mallOrderService.confirmReceipt(id, userId);
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     @GetMapping("/orders")
     @RequireRole({2, 3}) // Admin/Reviewer
     public Result<List<MallOrder>> getOrders(@RequestParam(required = false) Integer status) {
@@ -121,9 +146,9 @@ public class MallOrderController {
         }
     }
 
-    @PostMapping(value = {"/orders", "/order/create"})
+    @PostMapping("/orders")
     @RequireRole({0, 1, 2, 3})
-    public Result<String> createOrder(@RequestBody CreateMallOrderRequest createReq, HttpServletRequest request) {
+    public Result<MallOrder> createOrder(@RequestBody CreateMallOrderRequest req, HttpServletRequest request) {
         Object userIdObj = request.getAttribute("userId");
         if (userIdObj == null) {
             return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
@@ -136,20 +161,10 @@ public class MallOrderController {
         }
 
         try {
-            if (createReq.getItems() == null || createReq.getItems().isEmpty()) {
-                return Result.fail(400, "订单商品不能为空");
-            }
-            MallOrder order = mallOrderService.createOrder(userId, createReq.getItems(), createReq.getUsedPoints());
-            
-            // 如果 CreateMallOrderRequest 有 address，更新它
-            if (createReq.getAddress() != null && !createReq.getAddress().isEmpty()) {
-                order.setAddressSnapshot(createReq.getAddress());
-                mallOrderService.updateById(order);
-            }
-            return Result.success(order.getOrderNo());
+            MallOrder order = mallOrderService.createOrder(userId, req.getItems(), req.getUsedPoints(), req.getAddressId());
+            return Result.success(order);
         } catch (Exception e) {
-            e.printStackTrace();
-            return Result.fail(500, "下单失败: " + e.getMessage());
+            return Result.fail(e.getMessage());
         }
     }
 
