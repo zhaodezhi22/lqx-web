@@ -45,6 +45,14 @@
           <el-menu-item index="/admin/comments">评论审核</el-menu-item>
         </el-sub-menu>
 
+        <el-sub-menu index="5" v-if="role >= 2">
+          <template #title>
+            <el-icon><Monitor /></el-icon>
+            <span>站点管理</span>
+          </template>
+          <el-menu-item index="/admin/home-content">首页内容</el-menu-item>
+        </el-sub-menu>
+
         <el-sub-menu index="4" v-if="role == 3">
           <template #title>
             <el-icon><Setting /></el-icon>
@@ -88,7 +96,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Odometer, Document, Setting, ArrowDown, Money, Warning } from '@element-plus/icons-vue'
+import { Odometer, Document, Setting, ArrowDown, Money, Warning, Monitor } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const username = ref('')

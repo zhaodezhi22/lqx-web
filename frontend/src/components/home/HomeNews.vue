@@ -8,16 +8,17 @@
               <h3>最新戏曲资讯</h3>
             </div>
           </template>
-          <el-carousel height="240px" indicator-position="outside">
+          <el-carousel height="240px" indicator-position="outside" v-if="carousel.length > 0">
             <el-carousel-item v-for="(item, idx) in carousel" :key="idx">
-              <div class="carousel-item">
-                <img :src="item.img" alt="" />
+              <div class="carousel-item" @click="handleNewsClick(item)">
+                <img :src="item.imageUrl" alt="" />
                 <div class="overlay">
                   <h4>{{ item.title }}</h4>
                 </div>
               </div>
             </el-carousel-item>
           </el-carousel>
+          <div v-else class="no-data">暂无资讯</div>
         </el-card>
       </el-col>
       <el-col :span="10">
@@ -28,11 +29,12 @@
             </div>
           </template>
           <el-scrollbar height="240px">
-            <ul>
+            <ul v-if="notices.length > 0">
               <li v-for="(n, i) in notices" :key="i">
-                <a href="javascript:void(0)" @click="viewNotice(n)">{{ n }}</a>
+                <a href="javascript:void(0)" @click="viewNotice(n)">{{ n.title }}</a>
               </li>
             </ul>
+            <div v-else class="no-data">暂无公告</div>
           </el-scrollbar>
         </el-card>
       </el-col>
@@ -41,23 +43,71 @@
 </template>
 
 <script setup>
-const carousel = [
-  { title: '临沂柳琴戏精品剧目展演', img: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bd?q=80&w=1200&auto=format&fit=crop' },
-  { title: '非遗进校园活动周', img: 'https://images.unsplash.com/photo-1523961131990-5ea7c61b2107?q=80&w=1200&auto=format&fit=crop' },
-  { title: '传承人教学公开课', img: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&w=1200&auto=format&fit=crop' },
-]
+import { ref, onMounted } from 'vue'
+import request from '../../utils/request'
+import { useRouter } from 'vue-router'
 
-const notices = [
-  '关于新一轮传承人遴选的通知',
-  '近期演出排期及购票须知',
-  '资源库上线“经典重温”专题',
-  '文化节志愿者招募公告',
-]
+const router = useRouter()
+const carousel = ref([])
+const notices = ref([])
+
+const fetchNews = async () => {
+  try {
+    const [resNews, resNotices] = await Promise.all([
+      request.get('/home/content', { params: { type: 'NEWS_CAROUSEL' } }),
+      request.get('/home/content', { params: { type: 'NOTICE' } })
+    ])
+    carousel.value = resNews.data || []
+    notices.value = resNotices.data || []
+  } catch (e) {
+    // ignore
+  } finally {
+    // Fill defaults if empty
+    if (carousel.value.length === 0) {
+      carousel.value = [
+        { title: '临沂柳琴戏精品剧目展演', imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bd?q=80&w=1200&auto=format&fit=crop' },
+        { title: '非遗进校园活动周', imageUrl: 'https://images.unsplash.com/photo-1523961131990-5ea7c61b2107?q=80&w=1200&auto=format&fit=crop' },
+        { title: '传承人教学公开课', imageUrl: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&w=1200&auto=format&fit=crop' },
+      ]
+    }
+    if (notices.value.length === 0) {
+      notices.value = [
+        { title: '关于新一轮传承人遴选的通知' },
+        { title: '近期演出排期及购票须知' },
+        { title: '资源库上线“经典重温”专题' },
+        { title: '文化节志愿者招募公告' },
+      ]
+    }
+  }
+}
+
+const handleNewsClick = (item) => {
+  if (item.linkUrl) {
+    if (item.linkUrl.startsWith('http')) {
+      window.open(item.linkUrl, '_blank')
+    } else {
+      router.push(item.linkUrl)
+    }
+  } else if (item.id) {
+    // Navigate to detail page
+    router.push(`/content/${item.id}`)
+  }
+}
 
 const viewNotice = (n) => {
-  // Placeholder
-  console.log('View notice:', n)
+  if (n.linkUrl) {
+    if (n.linkUrl.startsWith('http')) {
+      window.open(n.linkUrl, '_blank')
+    } else {
+      router.push(n.linkUrl)
+    }
+  } else if (n.id) {
+    // Navigate to detail page
+    router.push(`/content/${n.id}`)
+  }
 }
+
+onMounted(fetchNews)
 </script>
 
 <style scoped>
@@ -70,6 +120,7 @@ const viewNotice = (n) => {
   width: 100%;
   height: 240px;
   overflow: hidden;
+  cursor: pointer;
 }
 .news-carousel img {
   width: 100%;
@@ -103,5 +154,10 @@ const viewNotice = (n) => {
 }
 .news-list a:hover {
   color: #AA1D1D;
+}
+.no-data {
+  text-align: center;
+  color: #999;
+  padding: 20px;
 }
 </style>

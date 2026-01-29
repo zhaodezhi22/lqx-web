@@ -7,21 +7,18 @@
       <text :x="width / 2" y="35" text-anchor="middle" font-size="12" fill="#999">舞台 / Stage</text>
 
       <!-- Seats -->
-      <g v-for="(row, rIndex) in parsedLayout.rows" :key="rIndex">
-        <g v-for="(seat, cIndex) in row.seats" :key="cIndex">
-          <circle 
-            v-if="seat !== null"
-            :cx="seat.x" 
-            :cy="seat.y" 
-            :r="seatRadius" 
-            :fill="getSeatColor(seat)"
-            :stroke="selectedIds.includes(seat.id) ? '#e6a23c' : '#fff'"
-            stroke-width="1"
-            class="seat-circle"
-            @click="handleClick(seat)"
-          />
-          <title>{{ seat.id }}</title>
-        </g>
+      <g v-for="seat in parsedLayout.seats" :key="seat.id">
+        <circle 
+          :cx="seat.x" 
+          :cy="seat.y" 
+          :r="seatRadius" 
+          :fill="getSeatColor(seat)"
+          :stroke="selectedIds.includes(seat.id) ? '#e6a23c' : '#fff'"
+          stroke-width="1"
+          class="seat-circle"
+          @click="handleClick(seat)"
+        />
+        <title>{{ seat.row }}排{{ seat.col }}座</title>
       </g>
     </svg>
     <div class="legend">
@@ -33,7 +30,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   layout: [String, Array], // JSON string or List Object
@@ -48,55 +45,57 @@ const emit = defineEmits(['click-seat'])
 const seatRadius = 12
 const gap = 10
 
-// 10x16 Grid Base
-const rows = 10
-const cols = 16
-const w = cols * (seatRadius * 2 + gap) + 40
-const h = rows * (seatRadius * 2 + gap) + 60
-const width = ref(w)
-const height = ref(h)
-
-const parsedLayout = computed(() => {
-  // Parse backend layout to get status map: { "1-1": 1, ... }
-  const statusMap = {}
-  let layoutList = []
-  
+const layoutList = computed(() => {
   if (typeof props.layout === 'string' && props.layout) {
     try {
       const parsed = JSON.parse(props.layout)
-      if (Array.isArray(parsed)) {
-        layoutList = parsed
-      }
-    } catch (e) { console.error('Invalid JSON layout', e) }
+      return Array.isArray(parsed) ? parsed : []
+    } catch (e) { return [] }
   } else if (Array.isArray(props.layout)) {
-    layoutList = props.layout
+    return props.layout
   }
+  return []
+})
 
-  // Ensure layoutList is valid
-  if (!Array.isArray(layoutList)) {
-    layoutList = []
+const gridInfo = computed(() => {
+  let maxR = 0
+  let maxC = 0
+  const list = layoutList.value
+  
+  if (list.length > 0) {
+    list.forEach(s => {
+      if (s.row > maxR) maxR = s.row
+      if (s.col > maxC) maxC = s.col
+    })
+  } else {
+    // Default fallback if empty
+    maxR = 10
+    maxC = 16
   }
+  
+  return { rows: maxR, cols: maxC }
+})
 
-  layoutList.forEach(s => {
-    if (s && s.id) statusMap[s.id] = s.status // 0: Available, 1: Sold
-  })
+const width = computed(() => gridInfo.value.cols * (seatRadius * 2 + gap) + 40)
+const height = computed(() => gridInfo.value.rows * (seatRadius * 2 + gap) + 60)
 
-  // Generate Grid and apply status
-  const rowData = []
-  for (let r = 0; r < rows; r++) {
-    const seats = []
-    for (let c = 0; c < cols; c++) {
-      const id = `${r + 1}-${c + 1}`
+const parsedLayout = computed(() => {
+  const list = layoutList.value
+  const seats = []
+  
+  list.forEach(s => {
+    if (s.row && s.col) {
       seats.push({
-        id: id,
-        x: 20 + c * (seatRadius * 2 + gap) + seatRadius,
-        y: 60 + r * (seatRadius * 2 + gap) + seatRadius,
-        status: statusMap[id] !== undefined ? statusMap[id] : 0 // Default 0
+        ...s,
+        id: s.id || `${s.row}-${s.col}`,
+        x: 20 + (s.col - 1) * (seatRadius * 2 + gap) + seatRadius,
+        y: 60 + (s.row - 1) * (seatRadius * 2 + gap) + seatRadius,
+        status: s.status !== undefined ? s.status : 0
       })
     }
-    rowData.push({ seats })
-  }
-  return { rows: rowData }
+  })
+  
+  return { seats }
 })
 
 const getSeatColor = (seat) => {

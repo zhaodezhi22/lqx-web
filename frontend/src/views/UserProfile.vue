@@ -38,6 +38,10 @@
                     <div class="order-info-cell">
                       <div class="order-no">{{ row.orderNo }}</div>
                       <div class="create-time">{{ row.createTime }}</div>
+                      <div v-if="row.addressSnapshot" style="font-size: 12px; color: #666; margin-top: 5px; display: flex; align-items: center;">
+                         <el-icon style="margin-right: 4px;"><Location /></el-icon>
+                         <span :title="row.addressSnapshot" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; display: inline-block; vertical-align: middle;">{{ row.addressSnapshot }}</span>
+                      </div>
                     </div>
                   </template>
                 </el-table-column>
@@ -70,23 +74,13 @@
                   </template>
                 </el-table-column>
 
-                <el-table-column label="操作" width="100" fixed="right">
+                <el-table-column label="操作" width="160" fixed="right">
                   <template #default="{ row }">
-                    <el-dropdown trigger="click">
-                      <span class="el-dropdown-link">
-                        更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
-                      </span>
-                      <template #dropdown>
-                        <el-dropdown-menu>
-                          <el-dropdown-item v-if="row.status === 1" @click="handleMallRefund(row)">
-                            <span class="text-gray">申请退款</span>
-                          </el-dropdown-item>
-                           <el-dropdown-item v-if="row.status >= 2">
-                            <span class="text-gray">查看物流</span>
-                          </el-dropdown-item>
-                        </el-dropdown-menu>
-                      </template>
-                    </el-dropdown>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <el-button v-if="row.status === 1" type="danger" link size="small" @click="handleMallRefund(row)">申请退款</el-button>
+                        <el-button v-if="row.status === 2" type="primary" size="small" @click="handleConfirmReceipt(row)">确认收货</el-button>
+                        <el-button v-if="row.status >= 2" type="primary" link size="small" @click="handleViewLogistics(row)">查看物流</el-button>
+                    </div>
                   </template>
                 </el-table-column>
               </el-table>
@@ -125,6 +119,77 @@
                 <el-empty description="暂无票务" />
               </div>
             </el-tab-pane>
+
+            <el-tab-pane label="我的积分" name="points">
+              <div class="points-header">
+                <div class="current-points">
+                  <div class="label">
+                    当前积分
+                    <el-tooltip placement="top">
+                      <template #content>
+                        <div>积分获取规则：</div>
+                        <div>1. 每日签到：+5积分 (连续签到有额外奖励)</div>
+                        <div>2. 社区活跃：+10积分 (发帖/回帖，每日限3次)</div>
+                        <div>3. 戏曲资源：+10积分 (观看>15s，每日限3次)</div>
+                        <div>4. 购物返利：1元 = 1积分</div>
+                        <div>5. 活动参与：+100积分 (购票核销)</div>
+                      </template>
+                      <el-icon class="info-icon"><Warning /></el-icon>
+                    </el-tooltip>
+                  </div>
+                  <div class="value">{{ pointsInfo.currentPoints || 0 }}</div>
+                </div>
+                <div class="sign-in-section">
+                  <el-button 
+                    type="primary" 
+                    size="large" 
+                    :disabled="pointsInfo.signedIn" 
+                    @click="handleSignIn"
+                  >
+                    {{ pointsInfo.signedIn ? '已签到' : '立即签到' }}
+                  </el-button>
+                  <div class="streak-info">
+                    已连续签到 <span class="highlight">{{ pointsInfo.continuousSignDays || 0 }}</span> 天
+                    <el-progress 
+                      :percentage="calculateStreakPercentage(pointsInfo.continuousSignDays)" 
+                      :format="streakFormat"
+                      :status="pointsInfo.signedIn ? 'success' : ''"
+                      style="margin-top: 8px; width: 200px"
+                    />
+                    <div class="streak-tips">
+                      10天/20天/满月均有额外大奖！
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <el-divider content-position="left">积分明细</el-divider>
+
+              <el-table :data="pointsLogs" v-loading="pointsLoading" stripe style="width: 100%">
+                <el-table-column prop="createTime" label="时间" width="180">
+                  <template #default="{ row }">
+                    {{ formatTime(row.createdTime) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="changePoint" label="变动" width="120">
+                  <template #default="{ row }">
+                    <span :class="row.changePoint > 0 ? 'plus-point' : 'minus-point'">
+                      {{ row.changePoint > 0 ? '+' : '' }}{{ row.changePoint }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="reason" label="原因" />
+              </el-table>
+              <div style="margin-top: 16px; text-align: right">
+                <el-pagination
+                  background
+                  layout="prev, pager, next"
+                  :total="pointsTotal"
+                  :page-size="10"
+                  @current-change="handlePointsPageChange"
+                />
+              </div>
+            </el-tab-pane>
             <el-tab-pane label="基本资料" name="profile">
               <el-form label-width="100px" style="max-width: 500px">
                 <el-form-item label="头像">
@@ -157,6 +222,33 @@
                   <el-button type="primary" @click="saveProfile">保存修改</el-button>
                 </el-form-item>
               </el-form>
+            </el-tab-pane>
+            <el-tab-pane label="我的地址" name="address">
+              <div style="margin-bottom: 15px;">
+                <el-button type="primary" :icon="Plus" @click="handleAddAddress">新增地址</el-button>
+              </div>
+              <el-table :data="addressList" v-loading="addressLoading" style="width: 100%">
+                <el-table-column prop="receiverName" label="收货人" width="120" />
+                <el-table-column prop="phone" label="手机号" width="150" />
+                <el-table-column label="所在地区" min-width="150">
+                    <template #default="{ row }">
+                        {{ row.province }} {{ row.city }} {{ row.district }}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="detailAddress" label="详细地址" min-width="200" />
+                <el-table-column label="默认" width="80">
+                    <template #default="{ row }">
+                        <el-tag v-if="row.isDefault" type="success" size="small">默认</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="220" fixed="right">
+                    <template #default="{ row }">
+                        <el-button link type="primary" :icon="Edit" @click="handleEditAddress(row)">编辑</el-button>
+                        <el-button link type="danger" :icon="Delete" @click="handleDeleteAddress(row.id)">删除</el-button>
+                        <el-button v-if="!row.isDefault" link type="warning" @click="handleSetDefaultAddress(row.id)">设为默认</el-button>
+                    </template>
+                </el-table-column>
+              </el-table>
             </el-tab-pane>
             <el-tab-pane v-if="hasMaster" label="我的师门" name="apprenticeship">
               <div class="apprenticeship-container">
@@ -221,6 +313,37 @@
       </template>
     </el-dialog>
 
+    <!-- Address Edit Dialog -->
+    <el-dialog v-model="addressDialogVisible" :title="addressForm.id ? '编辑地址' : '新增地址'" width="500px">
+        <el-form :model="addressForm" :rules="addressRules" ref="addressFormRef" label-width="100px">
+            <el-form-item label="收货人" prop="receiverName">
+                <el-input v-model="addressForm.receiverName" placeholder="请输入收货人姓名" />
+            </el-form-item>
+            <el-form-item label="手机号" prop="phone">
+                <el-input v-model="addressForm.phone" placeholder="请输入手机号" />
+            </el-form-item>
+            <el-form-item label="省市区" required>
+                <div style="display: flex; gap: 10px;">
+                    <el-input v-model="addressForm.province" placeholder="省" />
+                    <el-input v-model="addressForm.city" placeholder="市" />
+                    <el-input v-model="addressForm.district" placeholder="区/县" />
+                </div>
+            </el-form-item>
+            <el-form-item label="详细地址" prop="detailAddress">
+                <el-input v-model="addressForm.detailAddress" type="textarea" placeholder="请输入详细地址" />
+            </el-form-item>
+            <el-form-item label="默认地址">
+                <el-switch v-model="addressForm.isDefault" />
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="addressDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitAddress">确定</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
     <ProductDetailModal v-model:visible="detailVisible" :product-id="currentProductId" />
   </div>
 </template>
@@ -230,7 +353,7 @@ import { ref, onMounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
-import { User, Phone, ArrowDown, Picture, Camera, Plus } from '@element-plus/icons-vue'
+import { User, Phone, ArrowDown, Picture, Camera, Plus, Warning, Edit, Delete, Location } from '@element-plus/icons-vue'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 
 const route = useRoute()
@@ -261,9 +384,10 @@ const statusText = (s) => {
     case 0: return '待支付'
     case 1: return '待发货'
     case 2: return '已发货'
-    case 3: return '已完成'
+    case 3: return '已取消'
     case 4: return '退款审核中'
     case 5: return '已退款'
+    case 6: return '已完成'
     default: return '未知'
   }
 }
@@ -272,9 +396,10 @@ const statusTagType = (s) => {
     case 0: return 'warning'
     case 1: return 'info'
     case 2: return 'primary'
-    case 3: return 'success'
+    case 3: return 'danger'
     case 4: return 'warning'
     case 5: return 'info'
+    case 6: return 'success'
     default: return ''
   }
 }
@@ -295,6 +420,109 @@ const submitForm = reactive({
   videoUrl: ''
 })
 
+// Address Logic
+const addressList = ref([])
+const addressLoading = ref(false)
+const addressDialogVisible = ref(false)
+const addressForm = reactive({
+    id: null,
+    receiverName: '',
+    phone: '',
+    province: '',
+    city: '',
+    district: '',
+    detailAddress: '',
+    isDefault: false
+})
+const addressRules = {
+    receiverName: [{ required: true, message: '请输入收货人姓名', trigger: 'blur' }],
+    phone: [{ required: true, message: '请输入手机号码', trigger: 'blur' }],
+    detailAddress: [{ required: true, message: '请输入详细地址', trigger: 'blur' }]
+}
+const addressFormRef = ref(null)
+
+const fetchAddressList = async () => {
+    addressLoading.value = true
+    try {
+        const res = await request.get('/user/address/list')
+        if (res.code === 200) {
+            addressList.value = res.data || []
+        }
+    } catch (e) {
+        ElMessage.error('加载地址失败')
+    } finally {
+        addressLoading.value = false
+    }
+}
+
+const handleAddAddress = () => {
+    addressForm.id = null
+    addressForm.receiverName = ''
+    addressForm.phone = ''
+    addressForm.province = ''
+    addressForm.city = ''
+    addressForm.district = ''
+    addressForm.detailAddress = ''
+    addressForm.isDefault = false
+    addressDialogVisible.value = true
+}
+
+const handleEditAddress = (row) => {
+    Object.assign(addressForm, row)
+    addressDialogVisible.value = true
+}
+
+const handleDeleteAddress = (id) => {
+    ElMessageBox.confirm('确定要删除该地址吗？', '提示', {
+        type: 'warning'
+    }).then(async () => {
+        try {
+            const res = await request.delete(`/user/address/${id}`)
+            if (res.code === 200) {
+                ElMessage.success('删除成功')
+                fetchAddressList()
+            }
+        } catch (e) {
+            ElMessage.error('删除失败')
+        }
+    })
+}
+
+const handleSetDefaultAddress = async (id) => {
+    try {
+        const res = await request.put(`/user/address/${id}/default`)
+        if (res.code === 200) {
+            ElMessage.success('设置成功')
+            fetchAddressList()
+        }
+    } catch (e) {
+        ElMessage.error('设置失败')
+    }
+}
+
+const submitAddress = async () => {
+    if (!addressFormRef.value) return
+    await addressFormRef.value.validate(async (valid) => {
+        if (valid) {
+            try {
+                if (addressForm.id) {
+                    await request.put('/user/address', addressForm)
+                    ElMessage.success('更新成功')
+                } else {
+                    await request.post('/user/address', addressForm)
+                    ElMessage.success('添加成功')
+                }
+                addressDialogVisible.value = false
+                fetchAddressList()
+            } catch (e) {
+                ElMessage.error(e.response?.data?.message || '操作失败')
+            }
+        }
+    })
+}
+
+
+
 const formatTime = (arr) => {
   if (!arr) return ''
   if (Array.isArray(arr)) {
@@ -312,7 +540,8 @@ const fetchMyOrders = async () => {
       orders.value = res.data || []
     }
   } catch (e) {
-    ElMessage.error('加载订单失败')
+    console.error(e)
+    ElMessage.error('加载订单失败: ' + (e.response?.data?.message || e.message || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -347,6 +576,111 @@ const fetchMyMaster = async () => {
     hasMaster.value = false
   }
 }
+
+// Points Logic
+const pointsInfo = reactive({
+  currentPoints: 0,
+  continuousSignDays: 0,
+  lastSignDate: null,
+  signedIn: false
+})
+const pointsLogs = ref([])
+const pointsLoading = ref(false)
+const pointsTotal = ref(0)
+const pointsPage = ref(1)
+
+const calculateStreakPercentage = (days) => {
+  if (!days) return 0
+  if (days >= 30) return 100
+  return (days / 30) * 100
+}
+
+const streakFormat = (percentage) => {
+  return pointsInfo.continuousSignDays + '天'
+}
+
+const fetchPointsInfo = async () => {
+  if (!user.userId) return
+  try {
+    const res = await request.get('/points/info', { params: { userId: user.userId } })
+    if (res.code === 200) {
+      Object.assign(pointsInfo, res.data)
+    }
+  } catch (e) {
+    console.error('Fetch points info failed', e)
+  }
+}
+
+const fetchPointsLog = async () => {
+  if (!user.userId) return
+  pointsLoading.value = true
+  try {
+    const res = await request.get('/points/log', { 
+      params: { 
+        userId: user.userId,
+        page: pointsPage.value,
+        size: 10
+      } 
+    })
+    if (res.code === 200) {
+      pointsLogs.value = res.data.records
+      pointsTotal.value = res.data.total
+    }
+  } catch (e) {
+    console.error('Fetch points log failed', e)
+  } finally {
+    pointsLoading.value = false
+  }
+}
+
+const handleSignIn = async () => {
+  if (!user.userId) return
+  try {
+    const res = await request.post('/points/signin', null, { params: { userId: user.userId } })
+    if (res.code === 200) {
+      const { points, continuousSignDays } = res.data
+      ElMessage.success(`签到成功！获得 ${points} 积分，已连续签到 ${continuousSignDays} 天`)
+      fetchPointsInfo()
+      fetchPointsLog()
+    } else {
+      ElMessage.error(res.message || '签到失败')
+    }
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || '签到失败')
+  }
+}
+
+const handlePointsPageChange = (page) => {
+  pointsPage.value = page
+  fetchPointsLog()
+}
+
+watch(activeTab, (val) => {
+  if (val === 'points') {
+    fetchPointsInfo()
+    fetchPointsLog()
+  } else if (val === 'address') {
+    fetchAddressList()
+  }
+})
+
+onMounted(() => {
+    const tab = route.query.tab
+    if (tab) {
+        activeTab.value = tab
+    }
+    fetchMyOrders()
+    fetchTickets()
+    fetchMyMaster()
+    fetchAssignments()
+    // Initial fetch if tab is already set to points or address
+    if (activeTab.value === 'points') {
+        fetchPointsInfo()
+        fetchPointsLog()
+    } else if (activeTab.value === 'address') {
+        fetchAddressList()
+    }
+})
 
 const fetchAssignments = async () => {
   assignmentsLoading.value = true
@@ -393,6 +727,42 @@ const doSubmit = async () => {
   } catch (e) {
       ElMessage.error('提交失败')
   }
+}
+
+const handleConfirmReceipt = (row) => {
+  ElMessageBox.confirm(
+    '确认已收到商品？确认后订单将完成。',
+    '收货确认',
+    {
+      confirmButtonText: '确认收货',
+      cancelButtonText: '取消',
+      type: 'success',
+    }
+  ).then(async () => {
+    try {
+      await request.post(`/mall/confirm/${row.id}`)
+      ElMessage.success('确认收货成功')
+      fetchMyOrders()
+    } catch (e) {
+      ElMessage.error(e?.response?.data?.message || '操作失败')
+    }
+  }).catch(() => {})
+}
+
+const handleViewLogistics = (row) => {
+    if (!row.deliveryCompany && !row.deliveryNo) {
+        ElMessage.info('暂无物流信息')
+        return
+    }
+    ElMessageBox.alert(
+        `<div><strong>物流公司：</strong>${row.deliveryCompany || '未知'}</div>
+         <div style="margin-top:8px"><strong>物流单号：</strong>${row.deliveryNo || '暂无'}</div>`,
+        '物流信息',
+        {
+            dangerouslyUseHTMLString: true,
+            confirmButtonText: '关闭'
+        }
+    )
 }
 
 const handleRefund = (row) => {
@@ -504,8 +874,15 @@ onMounted(() => {
     fetchTickets()
   } else if (activeTab.value === 'apprenticeship') {
     fetchAssignments()
+  } else if (activeTab.value === 'points') {
+    fetchPointsInfo()
+    fetchPointsLog()
   }
 })
+
+// Combined watch is better, but separate is fine.
+// The previous tool added a watch for 'points'. 
+// I will just add styles now.
 
 watch(activeTab, (val) => {
   if (val === 'orders') {
@@ -538,9 +915,60 @@ watch(activeTab, (val) => {
 .info-list p {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: #606266;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+}
+.points-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.current-points {
+  text-align: center;
+}
+.current-points .label {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+.current-points .value {
+  font-size: 36px;
+  font-weight: bold;
+  color: #409eff;
+}
+.sign-in-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.streak-info {
+  margin-top: 10px;
+  text-align: right;
+  font-size: 14px;
+  color: #606266;
+}
+.streak-info .highlight {
+  color: #f56c6c;
+  font-weight: bold;
+  font-size: 16px;
+}
+.streak-tips {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+.plus-point {
+  color: #67c23a;
+  font-weight: bold;
+}
+.minus-point {
+  color: #f56c6c;
+  font-weight: bold;
 }
 .actions {
   margin-top: 30px;

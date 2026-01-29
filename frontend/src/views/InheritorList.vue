@@ -13,7 +13,7 @@
         :key="item.userId" 
         class="inheritor-card" 
         shadow="hover"
-        @click="goToDetail(item)"
+        @click="goToProfile(item)"
       >
         <div class="card-content">
           <el-avatar :size="80" :src="item.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
@@ -24,6 +24,7 @@
             致力于柳琴戏的传承与发扬...
           </div>
           <div class="actions" style="margin-top: 15px;">
+             <el-button type="default" size="small" @click.stop="goToGraph(item)">查看师承</el-button>
              <el-button type="primary" size="small" @click.stop="openApply(item)">拜师</el-button>
           </div>
         </div>
@@ -88,9 +89,13 @@ const fetchInheritors = async () => {
   }
 }
 
-const goToDetail = (item) => {
+const goToGraph = (item) => {
   // Pass the inheritor ID to focus on their lineage
   router.push({ path: '/inheritor/graph', query: { id: item.inheritorId } })
+}
+
+const goToProfile = (item) => {
+  router.push({ name: 'UserPublicProfile', params: { id: item.userId } })
 }
 
 const openApply = (item) => {

@@ -18,12 +18,14 @@
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="orderNo" label="订单编号" width="180" />
         <el-table-column prop="userId" label="用户ID" width="100" />
+        <el-table-column prop="addressSnapshot" label="收货地址" min-width="200" show-overflow-tooltip />
         <el-table-column prop="totalAmount" label="金额" width="120" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
              <el-tag v-if="row.status === 0" type="info">待支付</el-tag>
              <el-tag v-else-if="row.status === 1" type="primary">已支付</el-tag>
              <el-tag v-else-if="row.status === 2" type="success">已发货</el-tag>
+             <el-tag v-else-if="row.status === 6" type="success">已完成</el-tag>
              <el-tag v-else-if="row.status === 3" type="danger">已取消</el-tag>
              <el-tag v-else-if="row.status === 4" type="warning">退款申请</el-tag>
              <el-tag v-else-if="row.status === 5" type="info">已退款</el-tag>
@@ -43,6 +45,7 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button v-if="row.status === 1" type="primary" size="small" @click="openShip(row)">去发货</el-button>
+            <el-button v-if="row.status === 2" type="warning" size="small" @click="openShip(row)">修改物流</el-button>
             <el-button v-if="row.status === 4" type="success" size="small" @click="confirmRefund(row)">同意退款</el-button>
             <!-- 预留驳回功能 -->
             <!-- <el-button v-if="row.status === 4" type="danger" size="small" @click="auditRefund(row, false)">驳回</el-button> -->
@@ -51,7 +54,7 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="shipDialogVisible" title="发货操作" width="400px">
+    <el-dialog v-model="shipDialogVisible" :title="dialogTitle" width="400px">
       <el-form :model="shipForm" label-width="100px">
         <el-form-item label="物流公司">
             <el-select v-model="shipForm.deliveryCompany" placeholder="请选择物流公司" style="width: 100%">
@@ -85,6 +88,7 @@ const loading = ref(false)
 const status = ref(null)
 
 const shipDialogVisible = ref(false)
+const dialogTitle = ref('发货操作')
 const shipForm = reactive({
   orderId: null,
   deliveryCompany: '',
@@ -107,8 +111,15 @@ const fetchList = async () => {
 
 const openShip = (row) => {
   shipForm.orderId = row.id
-  shipForm.deliveryCompany = ''
-  shipForm.deliveryNo = ''
+  if (row.status === 2) {
+      dialogTitle.value = '修改物流'
+      shipForm.deliveryCompany = row.deliveryCompany || ''
+      shipForm.deliveryNo = row.deliveryNo || ''
+  } else {
+      dialogTitle.value = '发货操作'
+      shipForm.deliveryCompany = ''
+      shipForm.deliveryNo = ''
+  }
   shipDialogVisible.value = true
 }
 
@@ -130,7 +141,7 @@ const handleShip = async () => {
     
     await request.post(`/mall/ship/${shipForm.orderId}`, formData)
     
-    ElMessage.success('发货成功')
+    ElMessage.success(dialogTitle.value === '修改物流' ? '修改成功' : '发货成功')
     shipDialogVisible.value = false
     fetchList()
   } catch (e) {

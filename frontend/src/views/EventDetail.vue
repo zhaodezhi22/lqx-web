@@ -3,6 +3,15 @@
     <div v-if="event">
       <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
       <h2>{{ event.title }}</h2>
+      <div class="publisher-info" v-if="event.publisherId && event.publisherName" @click="goProfile(event.publisherId)">
+        <el-avatar :size="32" :src="event.publisherAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
+        <span class="name">{{ event.publisherName }}</span>
+        <el-tag size="small" v-if="event.publisherRole === 1">传承人</el-tag>
+      </div>
+      <div class="publisher-info-disabled" v-else-if="event.publisherId">
+        <el-avatar :size="32" src="https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png" />
+        <span class="name">用户已注销</span>
+      </div>
       <div class="meta">地点：{{ event.venue }} ｜ 时间：{{ event.showTime }}</div>
       <div class="price">票价：¥ {{ event.ticketPrice }}</div>
 
@@ -47,6 +56,10 @@ const layout = ref(null)
 const selected = ref([]) 
 const buying = ref(false)
 const loading = ref(false)
+
+const goProfile = (userId) => {
+  router.push({ name: 'UserPublicProfile', params: { id: userId } })
+}
 
 const fetchDetail = async () => {
   loading.value = true
@@ -140,12 +153,46 @@ onMounted(fetchDetail)
 
 <style scoped>
 .page {
-  padding: 16px;
+  padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
 }
-.meta {
+.publisher-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  width: fit-content;
+  padding: 4px 8px 4px 0;
+  border-radius: 4px;
+}
+.publisher-info:hover {
+  background: #f5f7fa;
+}
+.publisher-info .name {
+  font-weight: bold;
+  font-size: 14px;
+  color: #303133;
+}
+.publisher-info-disabled {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  width: fit-content;
+  padding: 4px 8px 4px 0;
+  border-radius: 4px;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.publisher-info-disabled .name {
+  font-weight: bold;
+  font-size: 14px;
   color: #909399;
+}
+.meta {
+  color: #666;
   margin-bottom: 8px;
 }
 .price {

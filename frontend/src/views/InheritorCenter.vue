@@ -97,6 +97,43 @@
         </el-table>
       </el-tab-pane>
 
+      <!-- 9. 订单管理 -->
+      <el-tab-pane label="订单管理" name="order-mgmt">
+        <div class="toolbar">
+           <el-button @click="fetchSellerOrders" :icon="Refresh">刷新订单</el-button>
+        </div>
+        
+        <el-table :data="sellerOrdersList" v-loading="sellerOrdersLoading" style="width: 100%; margin-top: 20px;">
+          <el-table-column prop="orderNo" label="订单号" width="180" />
+          <el-table-column prop="createTime" label="下单时间" width="160" />
+          <el-table-column label="包含商品" width="300">
+             <template #default="scope">
+                <div v-for="item in scope.row.items" :key="item.id" class="order-item-mini">
+                    <el-image :src="item.productImage" style="width: 40px; height: 40px; margin-right: 10px;" />
+                    <span class="item-name">{{ item.productName }} x {{ item.quantity }}</span>
+                </div>
+             </template>
+          </el-table-column>
+          <el-table-column prop="totalAmount" label="订单总额" width="120">
+              <template #default="scope">¥{{ scope.row.totalAmount }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="100">
+             <template #default="scope">
+                <el-tag :type="getOrderStatusType(scope.row.status)">{{ getOrderStatusText(scope.row.status) }}</el-tag>
+             </template>
+          </el-table-column>
+          <el-table-column label="收货信息" width="200" show-overflow-tooltip>
+             <template #default="scope">{{ scope.row.addressSnapshot }}</template>
+          </el-table-column>
+          <el-table-column label="操作" fixed="right" width="180">
+            <template #default="scope">
+               <el-button v-if="scope.row.status === 1" type="primary" size="small" @click="openShipDialog(scope.row)">发货</el-button>
+               <el-button v-if="scope.row.status === 1 || scope.row.status === 4" type="danger" size="small" @click="handleRefund(scope.row)">退款/取消</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <!-- 3. 资源管理 -->
       <el-tab-pane label="资源管理" name="resources">
         <div class="toolbar">
@@ -139,7 +176,12 @@
           <el-table-column prop="price" label="价格" width="100">
              <template #default="scope">¥{{ scope.row.price }}</template>
           </el-table-column>
-          <el-table-column prop="stock" label="库存" width="100" />
+          <el-table-column prop="stock" label="库存" width="100">
+             <template #default="scope">
+                <span v-if="scope.row.stock === 0" style="color: red; font-weight: bold;">无货</span>
+                <span v-else>{{ scope.row.stock }}</span>
+             </template>
+          </el-table-column>
           <el-table-column prop="status" label="状态" width="100">
             <template #default="scope">
               <el-tag :type="getStatusType(scope.row.status)">{{ getStatusLabel(scope.row.status) }}</el-tag>
@@ -456,13 +498,29 @@
         </div>
       </div>
     </div>
+    <!-- Ship Dialog -->
+    <el-dialog v-model="shipDialogVisible" title="订单发货" width="400px">
+       <el-form :model="shipForm" label-width="80px">
+          <el-form-item label="快递公司">
+             <el-input v-model="shipForm.deliveryCompany" placeholder="如：顺丰速运" />
+          </el-form-item>
+          <el-form-item label="快递单号">
+             <el-input v-model="shipForm.deliveryNo" placeholder="请输入快递单号" />
+          </el-form-item>
+       </el-form>
+       <template #footer>
+          <el-button @click="shipDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmShip">确认发货</el-button>
+       </template>
+    </el-dialog>
+
   </div>
 </template>
 
 <script setup>
 import { reactive, ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import LineageTree from '../components/LineageTree.vue'
 
@@ -999,13 +1057,92 @@ const beforeUpload = (file) => {
 }
 
 // --- Init ---
+// --- Order Management ---
+const sellerOrdersList = ref([])
+const sellerOrdersLoading = ref(false)
+const shipDialogVisible = ref(false)
+const shipForm = reactive({
+    orderId: null,
+    deliveryCompany: '',
+    deliveryNo: ''
+})
+
+const fetchSellerOrders = async () => {
+    sellerOrdersLoading.value = true
+    try {
+        const res = await request.get('/seller/orders')
+        sellerOrdersList.value = res.data || []
+    } catch(e) {
+        ElMessage.error('获取订单列表失败')
+    } finally {
+        sellerOrdersLoading.value = false
+    }
+}
+
+const getOrderStatusText = (status) => {
+    const map = {0:'待支付', 1:'待发货', 2:'已发货', 3:'已取消/退款', 4:'退款申请中', 5:'已退款'}
+    return map[status] || '未知'
+}
+const getOrderStatusType = (status) => {
+    const map = {0:'warning', 1:'primary', 2:'success', 3:'info', 4:'danger', 5:'info'}
+    return map[status] || 'info'
+}
+
+const openShipDialog = (row) => {
+    shipForm.orderId = row.id
+    shipForm.deliveryCompany = ''
+    shipForm.deliveryNo = ''
+    shipDialogVisible.value = true
+}
+
+const confirmShip = async () => {
+    if(!shipForm.deliveryNo) {
+        ElMessage.warning('请输入快递单号')
+        return
+    }
+    try {
+        await request.post(`/seller/orders/ship/${shipForm.orderId}`, null, {
+            params: {
+                deliveryCompany: shipForm.deliveryCompany,
+                deliveryNo: shipForm.deliveryNo
+            }
+        })
+        ElMessage.success('发货成功')
+        shipDialogVisible.value = false
+        fetchSellerOrders()
+    } catch(e) {
+        ElMessage.error(e.response?.data?.message || '发货失败')
+    }
+}
+
+const handleRefund = (row) => {
+    ElMessageBox.confirm('确定要退款/取消该订单吗？库存将自动回滚。', '提示', {
+        type: 'warning'
+    }).then(async () => {
+        try {
+            await request.post(`/seller/orders/refund/${row.id}`)
+            ElMessage.success('操作成功')
+            fetchSellerOrders()
+        } catch(e) {
+            ElMessage.error(e.response?.data?.message || '操作失败')
+        }
+    })
+}
+
+// Watch tab change
+watch(activeTab, (val) => {
+    if (val === 'order-mgmt') {
+        fetchSellerOrders()
+    }
+})
+
 onMounted(() => {
-    fetchProfile()
-    fetchApprenticeship()
-    fetchResources()
-    fetchProducts()
-    fetchActivities()
-    fetchSalesStats()
+  fetchProfile()
+  fetchApprenticeship()
+  fetchResources()
+  fetchProducts()
+  fetchActivities()
+  fetchSalesStats()
 })
 </script>
 

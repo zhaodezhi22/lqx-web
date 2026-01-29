@@ -26,7 +26,9 @@ const routes = [
       { path: 'privacy', name: 'Privacy', component: () => import('../views/Privacy.vue') },
       { path: 'community', name: 'Community', component: () => import('../views/CommunityIndex.vue') },
       { path: 'community/detail/:id', name: 'CommunityDetail', component: () => import('../views/CommunityDetail.vue') },
+      { path: 'user/:id', name: 'UserPublicProfile', component: () => import('../views/UserPublicProfile.vue') },
       { path: 'profile', name: 'UserProfile', component: () => import('../views/UserProfile.vue') },
+      { path: 'content/:id', name: 'ContentDetail', component: () => import('../views/ContentDetail.vue') },
     ]
   },
 
@@ -50,6 +52,7 @@ const routes = [
       { path: 'users', name: 'AdminUser', component: () => import('../views/AdminUser.vue') },
       { path: 'logs', name: 'AdminSystemLogs', component: () => import('../views/AdminSystemLogs.vue') },
       { path: 'settings', name: 'AdminSettings', component: () => import('../views/AdminSettings.vue') },
+      { path: 'home-content', name: 'AdminHomeContent', component: () => import('../views/AdminHomeContent.vue') },
     ]
   }
 ]
