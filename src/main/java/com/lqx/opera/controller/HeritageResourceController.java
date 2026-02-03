@@ -52,6 +52,10 @@ public class HeritageResourceController {
             return Result.fail(404, "资源不存在");
         }
         
+        // Increment view count
+        resource.setViewCount(resource.getViewCount() == null ? 1 : resource.getViewCount() + 1);
+        heritageResourceService.updateById(resource);
+        
         // Enrich with uploader info
         com.lqx.opera.dto.ResourceDetailDTO dto = new com.lqx.opera.dto.ResourceDetailDTO();
         org.springframework.beans.BeanUtils.copyProperties(resource, dto);

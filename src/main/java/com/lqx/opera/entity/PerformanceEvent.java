@@ -40,6 +40,12 @@ public class PerformanceEvent implements Serializable {
     @TableField("status")
     private Integer status;
 
+    @TableField("description")
+    private String description;
+
+    @TableField("cover_image")
+    private String coverImage;
+
     @TableField("publisher_id")
     private Long publisherId;
 }

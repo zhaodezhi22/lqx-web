@@ -24,14 +24,20 @@ public class PerformanceEventController {
     }
 
     @GetMapping
-    public Result<List<com.lqx.opera.dto.EventDetailDTO>> list(@RequestParam(required = false) Boolean all) {
+    public Result<List<com.lqx.opera.dto.EventDetailDTO>> list(@RequestParam(required = false) Boolean all, @RequestParam(required = false) Boolean history) {
         LambdaQueryWrapper<PerformanceEvent> wrapper = new LambdaQueryWrapper<>();
         if (Boolean.TRUE.equals(all)) {
             // Admin: Sort by Status (1-Selling first), then ShowTime
             wrapper.last("ORDER BY CASE WHEN status = 1 THEN 0 ELSE 1 END ASC, show_time DESC");
-        } else {
-            // User: Show active events only
+        } else if (Boolean.TRUE.equals(history)) {
+            // User: History mode - show ended events
             wrapper.eq(PerformanceEvent::getStatus, 1);
+            wrapper.le(PerformanceEvent::getShowTime, LocalDateTime.now());
+            wrapper.orderByDesc(PerformanceEvent::getShowTime);
+        } else {
+            // User: Show active events only AND filter out expired events
+            wrapper.eq(PerformanceEvent::getStatus, 1);
+            wrapper.gt(PerformanceEvent::getShowTime, LocalDateTime.now());
             wrapper.orderByDesc(PerformanceEvent::getShowTime);
         }
         
@@ -191,8 +197,25 @@ public class PerformanceEventController {
     public Result<List<PerformanceEvent>> myEvents(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) return Result.fail(401, "未登录");
+        // Sort order:
+        // 1. Pending Audit (status=0)
+        // 2. Active & Not Ended (status=1 and show_time > now)
+        // 3. Offline (status=3)
+        // 4. Ended (show_time <= now)
+        // 5. Rejected (status=2)
+        // Note: Ended events might be status 1 but show_time <= now.
+        // We want Ended to be below Pending.
+        // Let's try: Pending(0) -> Active(1 & future) -> Offline(3) -> Ended(1 & past) -> Rejected(2)
+        
+        String sql = "ORDER BY CASE " +
+                     "WHEN status = 0 THEN 1 " + // Pending first
+                     "WHEN status = 1 AND show_time > NOW() THEN 2 " + // Active & Future
+                     "WHEN status = 3 THEN 3 " + // Offline
+                     "WHEN show_time <= NOW() THEN 4 " + // Ended (includes expired status 1)
+                     "ELSE 5 END ASC, show_time DESC";
+
         return Result.success(performanceEventService.list(new LambdaQueryWrapper<PerformanceEvent>()
                 .eq(PerformanceEvent::getPublisherId, userId)
-                .last("ORDER BY CASE status WHEN 1 THEN 1 WHEN 0 THEN 2 WHEN 2 THEN 3 WHEN 3 THEN 4 ELSE 5 END ASC, show_time DESC")));
+                .last(sql)));
     }
 }

@@ -75,8 +75,22 @@
         <el-form-item label="演出名称">
           <el-input v-model="form.title" />
         </el-form-item>
+        <el-form-item label="封面图片">
+           <el-upload
+              class="avatar-uploader"
+              action="/api/file/upload"
+              :show-file-list="false"
+              :on-success="handleCoverSuccess"
+              :before-upload="beforeUpload">
+              <img v-if="form.coverImage" :src="form.coverImage" class="avatar" />
+              <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+            </el-upload>
+        </el-form-item>
         <el-form-item label="场馆">
           <el-input v-model="form.venue" />
+        </el-form-item>
+        <el-form-item label="活动介绍">
+          <el-input v-model="form.description" type="textarea" :rows="4" />
         </el-form-item>
         <el-form-item label="时间">
           <el-date-picker v-model="form.showTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" />
@@ -177,7 +191,9 @@ const form = reactive({
   ticketPrice: '',
   totalSeats: 200, // Default seats
   status: 1,
-  seatLayoutJson: '[]'
+  seatLayoutJson: '[]',
+  description: '',
+  coverImage: ''
 })
 
 const seatDialogVisible = ref(false)
@@ -311,6 +327,16 @@ const showEditDialog = (row) => {
   Object.assign(form, row)
   if (!form.seatLayoutJson) form.seatLayoutJson = '[]'
   dialogVisible.value = true
+}
+
+const handleCoverSuccess = (res) => {
+    // console.log('Upload response:', res) // Debugging
+    if (res.code === 200) {
+        form.coverImage = res.data
+        ElMessage.success('封面上传成功')
+    } else {
+        ElMessage.error(res.message || '上传失败')
+    }
 }
 
 const submit = async () => {

@@ -5,6 +5,9 @@
       <h2 class="section-title">近期演出</h2>
       <span class="section-title-decoration"></span>
     </div>
+    <div style="text-align: right; margin-bottom: 20px;">
+        <el-button type="info" plain @click="openHistory">查看往期演出</el-button>
+    </div>
     <el-row :gutter="20">
       <el-col :span="8" v-for="ev in events" :key="ev.eventId">
         <el-card class="event-card" shadow="hover">
@@ -14,7 +17,7 @@
               <el-tag v-if="ev.publisherRole === 2 || ev.publisherRole === 3" type="warning" effect="dark" size="small">官方</el-tag>
             </div>
             <div>
-              <el-tag type="success" v-if="ev.status === 1">开放售票</el-tag>
+              <el-tag type="success" v-if="ev.status === 1 && !isExpired(ev.showTime)">开放售票</el-tag>
               <el-tag type="info" v-else>已结束/未开放</el-tag>
             </div>
           </div>
@@ -32,6 +35,33 @@
         <el-empty description="暂无演出" />
       </el-col>
     </el-row>
+
+    <!-- History Events Drawer -->
+    <el-drawer v-model="historyVisible" title="往期演出" size="60%">
+        <div v-loading="historyLoading">
+            <el-empty v-if="historyEvents.length === 0" description="暂无往期演出" />
+            <el-row :gutter="20" v-else>
+                <el-col :span="12" v-for="ev in historyEvents" :key="ev.eventId" style="margin-bottom: 20px;">
+                    <el-card shadow="hover">
+                        <div class="event-head">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <h4 style="margin:0">{{ ev.title }}</h4>
+                                <el-tag v-if="ev.publisherRole === 2 || ev.publisherRole === 3" type="warning" effect="dark" size="small">官方</el-tag>
+                            </div>
+                            <el-tag type="info">已结束</el-tag>
+                        </div>
+                        <div class="event-body" style="font-size: 13px; color: #666; margin-top: 10px;">
+                            <p>地点：{{ ev.venue }}</p>
+                            <p>时间：{{ formatTime(ev.showTime) }}</p>
+                        </div>
+                        <div class="event-actions" style="margin-top: 10px; text-align: right;">
+                             <el-button type="info" plain size="small" @click="viewDetail(ev.eventId)">查看回顾</el-button>
+                        </div>
+                    </el-card>
+                </el-col>
+            </el-row>
+        </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -43,6 +73,14 @@ import request from '../utils/request'
 const router = useRouter()
 const events = ref([])
 const loading = ref(false)
+const historyVisible = ref(false)
+const historyLoading = ref(false)
+const historyEvents = ref([])
+
+const isExpired = (timeStr) => {
+  if (!timeStr) return false
+  return new Date(timeStr).getTime() < new Date().getTime()
+}
 
 const formatTime = (iso) => {
   if (!iso) return ''
@@ -67,6 +105,19 @@ const fetchEvents = async () => {
 
 const viewDetail = (id) => {
   router.push(`/events/${id}`)
+}
+
+const openHistory = async () => {
+    historyVisible.value = true
+    historyLoading.value = true
+    try {
+        const res = await request.get('/events', { params: { history: true } })
+        historyEvents.value = res.data || []
+    } catch (e) {
+        // ignore
+    } finally {
+        historyLoading.value = false
+    }
 }
 
 onMounted(fetchEvents)

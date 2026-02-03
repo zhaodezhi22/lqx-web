@@ -216,15 +216,15 @@
           <el-table-column prop="venue" label="地点" />
           <el-table-column prop="status" label="状态">
              <template #default="scope">
-               <el-tag :type="getStatusType(scope.row.status)">
-                 {{ getStatusLabel(scope.row.status) }}
+               <el-tag :type="getStatusType(scope.row.status, scope.row.showTime)">
+                 {{ getStatusLabel(scope.row.status, scope.row.showTime) }}
                </el-tag>
              </template>
           </el-table-column>
           <el-table-column label="操作" width="150">
             <template #default="scope">
               <el-button link type="primary" @click="showActivityDialog(scope.row)">编辑</el-button>
-              <el-button v-if="scope.row.status === 1" link type="warning" @click="handleOffline(scope.row)">下架</el-button>
+              <el-button v-if="scope.row.status === 1 && !isExpired(scope.row.showTime)" link type="warning" @click="handleOffline(scope.row)">下架</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -462,8 +462,22 @@
         <el-form-item label="时间">
            <el-date-picker v-model="activityForm.showTime" type="datetime" placeholder="选择日期时间" value-format="YYYY-MM-DD HH:mm:ss" />
         </el-form-item>
+        <el-form-item label="封面图片">
+           <el-upload
+              class="avatar-uploader"
+              action="/api/file/upload"
+              :show-file-list="false"
+              :on-success="handleActivityCoverSuccess"
+              :before-upload="beforeUpload">
+              <img v-if="activityForm.coverImage" :src="activityForm.coverImage" class="avatar" />
+              <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+            </el-upload>
+        </el-form-item>
         <el-form-item label="地点">
           <el-input v-model="activityForm.venue" />
+        </el-form-item>
+        <el-form-item label="活动介绍">
+          <el-input v-model="activityForm.description" type="textarea" :rows="4" />
         </el-form-item>
         <el-form-item label="票价">
           <el-input-number v-model="activityForm.ticketPrice" :min="0" />
@@ -554,7 +568,13 @@ const formatDate = (dateStr) => {
     return dateStr
 }
 
-const getStatusLabel = (status) => {
+const isExpired = (timeStr) => {
+    if (!timeStr) return false
+    return new Date(timeStr).getTime() < new Date().getTime()
+}
+
+const getStatusLabel = (status, showTime) => {
+    if (showTime && isExpired(showTime)) return '已结束'
     if (status === 0) return '审核中'
     if (status === 1) return '已上架'
     if (status === 2) return '未通过'
@@ -562,7 +582,8 @@ const getStatusLabel = (status) => {
     return '未知'
 }
 
-const getStatusType = (status) => {
+const getStatusType = (status, showTime) => {
+    if (showTime && isExpired(showTime)) return 'info'
     if (status === 0) return 'warning'
     if (status === 1) return 'success'
     if (status === 2) return 'danger'
@@ -843,7 +864,9 @@ const activityForm = reactive({
   venue: '',
   ticketPrice: 0,
   totalSeats: 100,
-  seatLayoutJson: '[]'
+  seatLayoutJson: '[]',
+  description: '',
+  coverImage: ''
 })
 
 const seatDialogVisible = ref(false)
@@ -901,6 +924,16 @@ const showActivityDialog = (row = null) => {
         activityForm.seatLayoutJson = '[]'
     }
     dialogVisible.value = true
+}
+
+const handleActivityCoverSuccess = (res) => {
+    // console.log('Upload response:', res) // Debugging
+    if (res.code === 200) {
+        activityForm.coverImage = res.data
+        ElMessage.success('封面上传成功')
+    } else {
+        ElMessage.error(res.message || '上传失败')
+    }
 }
 
 const submitActivity = async () => {

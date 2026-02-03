@@ -37,7 +37,7 @@ const router = useRouter()
 const active = ref('classic')
 const resources = ref([])
 const loading = ref(false)
-const placeholder = 'https://images.unsplash.com/photo-1519225421980-715cb0218a56?q=80&w=1200&auto=format&fit=crop'
+const placeholder = 'https://images.unsplash.com/photo-1514533450685-4493e01d1fdc?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80'
 
 const resourcesToShow = computed(() => {
   return props.resources && props.resources.length ? props.resources : resources.value

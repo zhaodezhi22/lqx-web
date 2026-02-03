@@ -37,6 +37,15 @@ public class TicketController {
         if (userId == null) {
             return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
         }
+
+        PerformanceEvent event = performanceEventService.getById(req.getEventId());
+        if (event == null) {
+            return Result.fail(404, "演出不存在");
+        }
+        if (event.getShowTime() != null && event.getShowTime().isBefore(LocalDateTime.now())) {
+            return Result.fail(400, "演出已结束，无法选座");
+        }
+
         boolean success = ticketService.lockSeat(req.getEventId(), req.getSeatId(), userId);
         if (success) {
             return Result.success(true);
@@ -64,6 +73,15 @@ public class TicketController {
         }
 
         try {
+            PerformanceEvent event = performanceEventService.getById(dto.getEventId());
+            if (event == null) {
+                throw new RuntimeException("演出不存在");
+            }
+            // Check if event has ended
+            if (event.getShowTime() != null && event.getShowTime().isBefore(LocalDateTime.now())) {
+                throw new RuntimeException("演出已结束，无法购票");
+            }
+
             TicketOrder order = ticketService.createTicketOrder(dto, userId);
             return Result.success(order);
         } catch (RuntimeException e) {

@@ -3,6 +3,7 @@
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else-if="!profile" class="error">用户不存在</div>
     <div v-else class="profile-container">
+      <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
       <!-- User Header Info -->
       <div class="user-header">
         <el-avatar :size="100" :src="profile.avatar || defaultAvatar" />

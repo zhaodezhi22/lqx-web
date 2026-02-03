@@ -6,6 +6,7 @@
       </div>
       
       <div v-else-if="content" class="article-wrapper">
+        <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
         <h1 class="article-title">{{ content.title }}</h1>
         <div class="article-meta">
           <span class="meta-item">发布时间：{{ formatDate(content.createTime) }}</span>

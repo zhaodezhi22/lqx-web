@@ -1,5 +1,6 @@
 <template>
   <div class="page" v-if="detail">
+    <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
     <h2>{{ detail.title }}</h2>
     <div class="publisher-info" v-if="detail.uploaderId && detail.uploaderName" @click="goProfile(detail.uploaderId)">
       <el-avatar :size="32" :src="detail.uploaderAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />

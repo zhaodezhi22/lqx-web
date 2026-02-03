@@ -14,13 +14,27 @@
         <span class="name">用户已注销</span>
       </div>
       <div class="meta">地点：{{ event.venue }} ｜ 时间：{{ event.showTime }}</div>
+      <div v-if="isEnded" style="margin-bottom: 8px">
+        <el-tag type="info" effect="dark">演出已结束</el-tag>
+      </div>
       <div class="price">票价：¥ {{ event.ticketPrice }}</div>
+
+      <el-card class="desc-card">
+        <h3>活动介绍</h3>
+        <p>{{ event.description || '暂无介绍' }}</p>
+      </el-card>
 
       <el-card class="seat-card">
         <div class="seat-header">
           <div>请点击座位锁定（黄色为已锁定，红色为已售）</div>
-          <el-button type="primary" size="large" :disabled="selected.length === 0" :loading="buying" @click="buyNow">
-            立即购买 ({{ selected.length }})
+          <el-button 
+            type="primary" 
+            size="large" 
+            :disabled="selected.length === 0 || isEnded" 
+            :loading="buying" 
+            @click="buyNow"
+          >
+            {{ isEnded ? '已结束' : `立即购买 (${selected.length})` }}
           </el-button>
         </div>
         <SeatSelection 
@@ -28,11 +42,6 @@
           :selected-ids="selected" 
           @click-seat="onSeatClick" 
         />
-      </el-card>
-
-      <el-card class="desc-card">
-        <h3>活动介绍</h3>
-        <p>{{ event.description || '暂无介绍' }}</p>
       </el-card>
     </div>
     <div v-else-if="!loading" class="empty-state">
@@ -44,7 +53,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import SeatSelection from '../components/SeatSelection.vue'
@@ -57,6 +66,13 @@ const layout = ref(null)
 const selected = ref([]) 
 const buying = ref(false)
 const loading = ref(false)
+
+const isEnded = computed(() => {
+  if (!event.value || !event.value.showTime) return false
+  const showTime = new Date(event.value.showTime).getTime()
+  const now = new Date().getTime()
+  return now > showTime
+})
 
 const goProfile = (userId, role) => {
   if (role === 2 || role === 3) return // Don't navigate for official accounts
@@ -82,6 +98,10 @@ const fetchDetail = async () => {
 }
 
 const onSeatClick = async (seatId) => {
+  if (isEnded.value) {
+      ElMessage.warning('演出已结束，无法选座')
+      return
+  }
   if (selected.value.includes(seatId)) {
     // Optional: Unlock? Backend doesn't support unlock yet.
     // Just show message
@@ -199,20 +219,28 @@ onMounted(fetchDetail)
 }
 .price {
   font-weight: 600;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   font-size: 18px;
   color: #f56c6c;
 }
 .seat-card {
-  margin-bottom: 16px;
+  margin-top: 24px;
+  margin-bottom: 40px;
 }
 .seat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 .desc-card {
-  margin-top: 12px;
+  margin-top: 24px;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.desc-card h3 {
+  margin-bottom: 16px;
+  border-left: 4px solid #409EFF;
+  padding-left: 12px;
 }
 </style>

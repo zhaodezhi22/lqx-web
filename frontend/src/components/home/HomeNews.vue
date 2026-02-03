@@ -65,9 +65,9 @@ const fetchNews = async () => {
     // Fill defaults if empty
     if (carousel.value.length === 0) {
       carousel.value = [
-        { title: '临沂柳琴戏精品剧目展演', imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bd?q=80&w=1200&auto=format&fit=crop' },
-        { title: '非遗进校园活动周', imageUrl: 'https://images.unsplash.com/photo-1523961131990-5ea7c61b2107?q=80&w=1200&auto=format&fit=crop' },
-        { title: '传承人教学公开课', imageUrl: 'https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?q=80&w=1200&auto=format&fit=crop' },
+        { title: '临沂柳琴戏精品剧目展演', imageUrl: 'https://images.unsplash.com/photo-1514533450685-4493e01d1fdc?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80' },
+        { title: '非遗进校园活动周', imageUrl: 'https://images.unsplash.com/photo-1593118845063-8896024107f7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80' },
+        { title: '传承人教学公开课', imageUrl: 'https://images.unsplash.com/photo-1535025639604-9a804c092faa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80' },
       ]
     }
     if (notices.value.length === 0) {

@@ -211,7 +211,7 @@ const fetchFeatured = async () => {
         {
           title: '柳琴戏的历史渊源',
           content: '柳琴戏，又称“拉魂腔”，国家级非物质文化遗产...',
-          imageUrl: 'https://images.unsplash.com/photo-1535025639604-9a804c092faa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'
+          imageUrl: 'https://images.unsplash.com/photo-1514533450685-4493e01d1fdc?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'
         },
         {
           title: '名家名段欣赏',

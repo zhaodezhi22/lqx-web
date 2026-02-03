@@ -6,7 +6,7 @@
         <el-col :span="8" v-for="(ev, index) in eventsToShow" :key="ev.eventId" class="event-col">
           <div class="event-card" @click="book(ev.eventId)">
             <div class="event-cover">
-              <img :src="getCoverImage(index)" alt="cover" class="cover-img" />
+              <img :src="getCoverImage(ev, index)" alt="cover" class="cover-img" />
               <div class="date-badge">
                 <span class="day">{{ getDay(ev.showTime) }}</span>
                 <span class="month">{{ getMonth(ev.showTime) }}月</span>
@@ -44,7 +44,7 @@
                   type="primary" 
                   round 
                   class="buy-btn"
-                  :disabled="ev.status !== 1"
+                  :disabled="ev.status !== 1 || isExpired(ev.showTime)"
                 >
                   立即预订
                 </el-button>
@@ -90,6 +90,11 @@ const fetchEvents = async () => {
   }
 }
 
+const isExpired = (timeStr) => {
+  if (!timeStr) return false
+  return new Date(timeStr).getTime() < new Date().getTime()
+}
+
 const getMonth = (iso) => {
   if (!iso) return ''
   return new Date(iso).getMonth() + 1
@@ -119,7 +124,8 @@ const covers = [
   'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=800&auto=format&fit=crop'
 ]
 
-const getCoverImage = (index) => {
+const getCoverImage = (ev, index) => {
+  if (ev.coverImage) return ev.coverImage
   return covers[index % covers.length]
 }
 
