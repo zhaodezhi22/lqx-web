@@ -25,7 +25,11 @@ public class HeritageResourceController {
     }
 
     @GetMapping
-    public Result<List<HeritageResource>> list(@RequestParam(required = false) String category) {
+    public Result<Page<HeritageResource>> list(
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer size) {
+        
         LambdaQueryWrapper<HeritageResource> wrapper = new LambdaQueryWrapper<>();
         if (category != null && !category.isEmpty()) {
             wrapper.eq(HeritageResource::getCategory, category);
@@ -33,7 +37,9 @@ public class HeritageResourceController {
         // Show all resources (including pending) as per user requirement to see data
         // wrapper.eq(HeritageResource::getStatus, 1);
         wrapper.orderByDesc(HeritageResource::getCreatedTime);
-        return Result.success(heritageResourceService.list(wrapper));
+        
+        Page<HeritageResource> pageParam = new Page<>(page, size);
+        return Result.success(heritageResourceService.page(pageParam, wrapper));
     }
 
     @GetMapping("/featured")

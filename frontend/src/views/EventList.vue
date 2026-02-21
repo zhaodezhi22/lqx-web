@@ -9,7 +9,7 @@
         <el-button type="info" plain @click="openHistory">查看往期演出</el-button>
     </div>
     <el-row :gutter="20">
-      <el-col :span="8" v-for="ev in events" :key="ev.eventId">
+      <el-col :span="8" v-for="ev in events" :key="ev.eventId" class="event-col">
         <el-card class="event-card" shadow="hover">
           <div class="event-head">
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -127,6 +127,9 @@ onMounted(fetchEvents)
 @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap');
 .event-list {
   padding: 20px;
+}
+.event-col {
+  margin-bottom: 20px; /* Add vertical spacing */
 }
 .section-header {
   text-align: center;

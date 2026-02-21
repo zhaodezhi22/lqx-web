@@ -92,6 +92,17 @@
       
       <el-empty v-if="!loading && postList.length === 0" description="暂无内容" />
     </div>
+    
+    <!-- Pagination -->
+    <div class="pagination-container" v-if="total > 0">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="total"
+        layout="prev, pager, next, total"
+        @current-change="handlePageChange"
+      />
+    </div>
   </div>
 </template>
 
@@ -109,6 +120,10 @@ const submitting = ref(false)
 const dialogVisible = ref(false)
 const postList = ref([])
 const fileList = ref([])
+
+const currentPage = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
 
 const publishForm = reactive({
   content: '',
@@ -129,14 +144,20 @@ const fetchPosts = async () => {
   loading.value = true
   try {
     const res = await request.get('/community/post/list', {
-      params: { page: 1, size: 10 }
+      params: { page: currentPage.value, size: pageSize.value }
     })
     postList.value = res.data?.records || []
+    total.value = res.data?.total || 0
   } catch (e) {
     ElMessage.error('加载帖子失败')
   } finally {
     loading.value = false
   }
+}
+
+const handlePageChange = (val) => {
+  currentPage.value = val
+  fetchPosts()
 }
 
 const handlePublish = async () => {
@@ -232,113 +253,96 @@ onMounted(() => {
 
 <style scoped>
 .community-index {
+  padding: 20px;
   max-width: 800px;
   margin: 0 auto;
-  padding: 20px;
 }
-
 .publish-bar {
   margin-bottom: 20px;
-  text-align: center;
-  background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
+  text-align: right;
 }
-
 .post-card {
   margin-bottom: 20px;
 }
-.clickable-card {
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.clickable-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
 .post-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .user-info {
   display: flex;
   align-items: center;
-  gap: 10px;
 }
-
 .nickname {
+  margin-left: 10px;
   font-weight: bold;
   color: #333;
 }
-
 .time {
-  color: #999;
   font-size: 12px;
+  color: #999;
 }
-
-.post-content {
-  margin-bottom: 15px;
-}
-
-.text {
+.post-content .text {
   font-size: 16px;
   line-height: 1.6;
-  margin-bottom: 10px;
   color: #333;
+  margin-bottom: 10px;
   white-space: pre-wrap;
 }
-
 .image-wall {
   margin-top: 10px;
 }
-
-.single-img .post-image {
-  max-width: 100%;
-  max-height: 400px;
-  border-radius: 4px;
-}
-
 .grid-imgs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 8px;
 }
-
-.grid-imgs .post-image {
+.post-image {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 150px;
   border-radius: 4px;
+  cursor: pointer;
 }
-
+.single-img .post-image {
+  width: 200px;
+  height: auto;
+  max-height: 300px;
+}
 .post-footer {
+  margin-top: 15px;
   display: flex;
   align-items: center;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid #f0f2f5;
   padding-top: 10px;
 }
-
 .action-item {
   display: flex;
   align-items: center;
   cursor: pointer;
   color: #666;
-  gap: 5px;
-  transition: color 0.2s;
+  font-size: 14px;
 }
-
 .action-item:hover {
   color: #409EFF;
 }
-
 .action-item.active {
-  color: #F56C6C;
+  color: #E6A23C;
 }
-
-.count {
-  font-size: 14px;
+.action-item .el-icon {
+  margin-right: 4px;
+  font-size: 18px;
+}
+.clickable-card {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.clickable-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
 }
 </style>

@@ -14,6 +14,7 @@ const routes = [
       { path: 'home', name: 'Home', component: () => import('../views/Home.vue') },
       { path: 'resources', name: 'ResourceList', component: () => import('../views/ResourceList.vue') },
       { path: 'resources/:id', name: 'ResourceDetail', component: () => import('../views/ResourceDetail.vue') },
+      { path: 'search', name: 'SearchResults', component: () => import('../views/SearchResults.vue') },
       { path: 'products', name: 'ProductMall', component: () => import('../views/ProductMall.vue') },
       { path: 'events', name: 'EventList', component: () => import('../views/EventList.vue') },
       { path: 'events/:id', name: 'EventDetail', component: () => import('../views/EventDetail.vue') },

@@ -133,7 +133,7 @@
 
 <script setup>
 import { onMounted, ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ShoppingCart, Delete } from '@element-plus/icons-vue'
 import request from '../utils/request'
@@ -141,6 +141,7 @@ import { useCartStore } from '../stores/cart'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const products = ref([])
 const placeholder = 'https://via.placeholder.com/300x180?text=Product'
 const cart = useCartStore()
@@ -315,7 +316,14 @@ const checkout = () => {
     openCheckoutDialog()
 }
 
-onMounted(fetchList)
+onMounted(async () => {
+  await fetchList()
+  const pid = route.query.productId
+  if (pid) {
+    currentProductId.value = Number(pid)
+    detailVisible.value = true
+  }
+})
 </script>
 
 <style scoped>

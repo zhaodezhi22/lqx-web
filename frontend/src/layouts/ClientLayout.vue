@@ -31,13 +31,19 @@
             v-model="searchQuery"
             placeholder="搜索资源、商品..."
             class="search-input"
-            :suffix-icon="Search"
             @keyup.enter="handleSearch"
-          />
+          >
+            <template #suffix>
+              <el-icon class="search-icon" @click="handleSearch"><Search /></el-icon>
+            </template>
+          </el-input>
         </div>
 
         <!-- User Actions -->
         <div class="user-actions">
+          <div class="signin-icon" v-if="username" @click="handleQuickSignIn" title="每日签到">
+             <el-icon><Calendar /></el-icon>
+          </div>
           <el-dropdown v-if="username">
             <span class="el-dropdown-link">
               <el-avatar :size="32" :src="userAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
@@ -85,10 +91,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, Search } from '@element-plus/icons-vue'
+import { ArrowDown, Search, Calendar } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import request from '../utils/request'
 
 const router = useRouter()
 const username = ref('')
+const userId = ref(null)
 const role = ref(0)
 const userAvatar = ref('')
 const searchQuery = ref('')
@@ -99,6 +108,7 @@ onMounted(() => {
     try {
       const user = JSON.parse(userStr)
       username.value = user.username
+      userId.value = user.userId
       role.value = user.role
       userAvatar.value = user.avatar
     } catch (e) {
@@ -114,8 +124,43 @@ const logout = () => {
 }
 
 const handleSearch = () => {
-  console.log('Search:', searchQuery.value)
-  // Implement search logic here
+  const q = searchQuery.value && searchQuery.value.trim()
+  if (!q) return
+  router.push({ path: '/search', query: { keyword: q } })
+}
+
+const handleQuickSignIn = async () => {
+    if (!userId.value) return
+    try {
+        // Check sign in status first or just try to sign in
+        // If we want to jump to points page anyway, we can do:
+        // Try sign in -> if success -> show msg -> jump
+        // If already signed -> show msg -> jump
+        
+        // Let's try sign in directly.
+        const res = await request.post('/points/signin', null, { params: { userId: userId.value } })
+        if (res.code === 200) {
+            const { points, continuousSignDays } = res.data
+            ElMessage.success(`签到成功！获得 ${points} 积分`)
+        } else {
+            // Probably already signed in or error
+            // We can assume if code!=200 it might be "already signed in" or just show message
+            // If the message says "Today already signed in", it's fine.
+            if (res.message && res.message.includes('已签到')) {
+                 ElMessage.info('今日已签到')
+            } else {
+                 // ElMessage.error(res.message || '签到失败')
+            }
+        }
+    } catch (e) {
+        // If error, just ignore and jump
+        if (e.response?.data?.message?.includes('已签到')) {
+             ElMessage.info('今日已签到')
+        }
+    }
+    
+    // Jump to points tab
+    router.push({ path: '/profile', query: { tab: 'points' } })
 }
 </script>
 
@@ -207,11 +252,34 @@ const handleSearch = () => {
   box-shadow: 0 0 0 1px #AA1D1D;
 }
 
+.search-icon {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.search-icon:hover {
+  color: #AA1D1D;
+}
+
 .user-actions {
   display: flex;
   align-items: center;
   min-width: 100px;
   justify-content: flex-end;
+}
+
+.signin-icon {
+  cursor: pointer;
+  margin-right: 15px;
+  color: #AA1D1D;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s;
+}
+
+.signin-icon:hover {
+  transform: scale(1.1);
 }
 
 .el-dropdown-link {

@@ -52,6 +52,7 @@
             <span>站点管理</span>
           </template>
           <el-menu-item index="/admin/home-content">首页内容</el-menu-item>
+          <el-menu-item index="/admin/users" v-if="role == 3">用户管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="4" v-if="role == 3">
@@ -59,7 +60,6 @@
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
           </template>
-          <el-menu-item index="/admin/users">用户管理</el-menu-item>
           <el-menu-item index="/admin/logs">系统日志</el-menu-item>
           <el-menu-item index="/admin/settings">系统设置</el-menu-item>
         </el-sub-menu>

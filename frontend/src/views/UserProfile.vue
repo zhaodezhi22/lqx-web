@@ -31,6 +31,40 @@
       <el-col :span="18">
         <el-card class="content-card">
           <el-tabs v-model="activeTab">
+            <el-tab-pane label="基本资料" name="profile">
+              <el-form label-width="100px" style="max-width: 500px">
+                <el-form-item label="头像">
+                  <el-upload
+                    class="avatar-uploader"
+                    action="/api/file/upload"
+                    :show-file-list="false"
+                    :on-success="handleAvatarSuccess"
+                    :before-upload="beforeAvatarUpload"
+                  >
+                    <img v-if="user.avatar" :src="user.avatar" class="avatar-edit" />
+                    <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+                    <template #tip>
+                      <div class="el-upload__tip">
+                        点击图片上传，建议尺寸 200x200
+                      </div>
+                    </template>
+                  </el-upload>
+                </el-form-item>
+                <el-form-item label="昵称">
+                  <el-input v-model="user.username" disabled />
+                </el-form-item>
+                <el-form-item label="真实姓名">
+                  <el-input v-model="user.realName" />
+                </el-form-item>
+                <el-form-item label="联系电话">
+                  <el-input v-model="user.phone" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" @click="saveProfile">保存修改</el-button>
+                  <el-button type="warning" plain @click="changePwdDialogVisible = true">修改密码</el-button>
+                </el-form-item>
+              </el-form>
+            </el-tab-pane>
             <el-tab-pane label="我的订单" name="orders">
               <el-table :data="orders" v-loading="loading" style="width: 100%" class="custom-table">
                 <el-table-column label="订单信息" width="220">
@@ -192,39 +226,6 @@
                 />
               </div>
             </el-tab-pane>
-            <el-tab-pane label="基本资料" name="profile">
-              <el-form label-width="100px" style="max-width: 500px">
-                <el-form-item label="头像">
-                  <el-upload
-                    class="avatar-uploader"
-                    action="/api/file/upload"
-                    :show-file-list="false"
-                    :on-success="handleAvatarSuccess"
-                    :before-upload="beforeAvatarUpload"
-                  >
-                    <img v-if="user.avatar" :src="user.avatar" class="avatar-edit" />
-                    <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
-                    <template #tip>
-                      <div class="el-upload__tip">
-                        点击图片上传，建议尺寸 200x200
-                      </div>
-                    </template>
-                  </el-upload>
-                </el-form-item>
-                <el-form-item label="昵称">
-                  <el-input v-model="user.username" disabled />
-                </el-form-item>
-                <el-form-item label="真实姓名">
-                  <el-input v-model="user.realName" />
-                </el-form-item>
-                <el-form-item label="联系电话">
-                  <el-input v-model="user.phone" />
-                </el-form-item>
-                <el-form-item>
-                  <el-button type="primary" @click="saveProfile">保存修改</el-button>
-                </el-form-item>
-              </el-form>
-            </el-tab-pane>
             <el-tab-pane label="我的地址" name="address">
               <div style="margin-bottom: 15px;">
                 <el-button type="primary" :icon="Plus" @click="handleAddAddress">新增地址</el-button>
@@ -338,12 +339,14 @@
             <el-form-item label="手机号" prop="phone">
                 <el-input v-model="addressForm.phone" placeholder="请输入手机号" />
             </el-form-item>
-            <el-form-item label="省市区" required>
-                <div style="display: flex; gap: 10px;">
-                    <el-input v-model="addressForm.province" placeholder="省" />
-                    <el-input v-model="addressForm.city" placeholder="市" />
-                    <el-input v-model="addressForm.district" placeholder="区/县" />
-                </div>
+            <el-form-item label="省市区" prop="selectedArea">
+                <el-cascader
+                    v-model="addressForm.selectedArea"
+                    :options="regionData"
+                    placeholder="请选择省市区"
+                    @change="handleAreaChange"
+                    style="width: 100%"
+                />
             </el-form-item>
             <el-form-item label="详细地址" prop="detailAddress">
                 <el-input v-model="addressForm.detailAddress" type="textarea" placeholder="请输入详细地址" />
@@ -360,6 +363,27 @@
         </template>
     </el-dialog>
 
+    <!-- Change Password Dialog -->
+    <el-dialog v-model="changePwdDialogVisible" title="修改密码" width="400px">
+        <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="80px">
+            <el-form-item label="旧密码" prop="oldPassword">
+                <el-input v-model="passwordForm.oldPassword" type="password" show-password />
+            </el-form-item>
+            <el-form-item label="新密码" prop="newPassword">
+                <el-input v-model="passwordForm.newPassword" type="password" show-password />
+            </el-form-item>
+            <el-form-item label="确认密码" prop="confirmPassword">
+                <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="changePwdDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitChangePassword">确认修改</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
     <ProductDetailModal v-model:visible="detailVisible" :product-id="currentProductId" />
   </div>
 </template>
@@ -372,9 +396,11 @@ import request from '../utils/request'
 import { User, Phone, ArrowDown, Picture, Camera, Plus, Warning, Edit, Delete, Location } from '@element-plus/icons-vue'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 
+import { regionData, codeToText } from 'element-china-area-data'
+
 const route = useRoute()
 const router = useRouter()
-const activeTab = ref('orders')
+const activeTab = ref('profile')
 const user = reactive({
   userId: null,
   username: '',
@@ -383,6 +409,60 @@ const user = reactive({
   phone: '',
   avatar: ''
 })
+
+const changePwdDialogVisible = ref(false)
+const passwordForm = reactive({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+})
+const passwordRules = {
+    oldPassword: [{ required: true, message: '请输入旧密码', trigger: 'blur' }],
+    newPassword: [
+        { required: true, message: '请输入新密码', trigger: 'blur' },
+        { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    ],
+    confirmPassword: [
+        { required: true, message: '请确认新密码', trigger: 'blur' },
+        { 
+            validator: (rule, value, callback) => {
+                if (value !== passwordForm.newPassword) {
+                    callback(new Error('两次输入密码不一致'))
+                } else {
+                    callback()
+                }
+            }, 
+            trigger: 'blur' 
+        }
+    ]
+}
+const passwordFormRef = ref(null)
+
+const submitChangePassword = async () => {
+    if (!passwordFormRef.value) return
+    await passwordFormRef.value.validate(async (valid) => {
+        if (valid) {
+            try {
+                const res = await request.put(`/users/${user.userId}/password/change`, {
+                    oldPassword: passwordForm.oldPassword,
+                    newPassword: passwordForm.newPassword
+                })
+                if (res.code === 200) {
+                    ElMessage.success('密码修改成功，请重新登录')
+                    changePwdDialogVisible.value = false
+                    // Logout
+                    localStorage.removeItem('token')
+                    localStorage.removeItem('user')
+                    router.push('/login')
+                } else {
+                    ElMessage.error(res.message || '修改失败')
+                }
+            } catch (e) {
+                ElMessage.error(e.response?.data?.message || '修改失败')
+            }
+        }
+    })
+}
 
 const detailVisible = ref(false)
 const currentProductId = ref(null)
@@ -461,12 +541,14 @@ const addressForm = reactive({
     city: '',
     district: '',
     detailAddress: '',
-    isDefault: false
+    isDefault: false,
+    selectedArea: [] // For cascader binding
 })
 const addressRules = {
     receiverName: [{ required: true, message: '请输入收货人姓名', trigger: 'blur' }],
     phone: [{ required: true, message: '请输入手机号码', trigger: 'blur' }],
-    detailAddress: [{ required: true, message: '请输入详细地址', trigger: 'blur' }]
+    detailAddress: [{ required: true, message: '请输入详细地址', trigger: 'blur' }],
+    selectedArea: [{ required: true, message: '请选择省市区', trigger: 'change' }]
 }
 const addressFormRef = ref(null)
 
@@ -493,11 +575,18 @@ const handleAddAddress = () => {
     addressForm.district = ''
     addressForm.detailAddress = ''
     addressForm.isDefault = false
+    addressForm.selectedArea = []
     addressDialogVisible.value = true
 }
 
 const handleEditAddress = (row) => {
     Object.assign(addressForm, row)
+    // Restore cascader value from text
+    // Note: Reverse lookup from text to code is not directly supported by current version of element-china-area-data
+    // So we clear the selection if it's an edit, user has to re-select if they want to change area.
+    // Or we can try to find codes if we implement search, but for now simple approach:
+    addressForm.selectedArea = []
+    
     addressDialogVisible.value = true
 }
 
@@ -526,6 +615,14 @@ const handleSetDefaultAddress = async (id) => {
         }
     } catch (e) {
         ElMessage.error('设置失败')
+    }
+}
+
+const handleAreaChange = (val) => {
+    if (val && val.length === 3) {
+        addressForm.province = codeToText[val[0]]
+        addressForm.city = codeToText[val[1]]
+        addressForm.district = codeToText[val[2]]
     }
 }
 

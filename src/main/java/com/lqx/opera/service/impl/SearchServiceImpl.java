@@ -23,13 +23,19 @@ public class SearchServiceImpl implements SearchService {
     private final ProductService productService;
     private final PerformanceEventService performanceEventService;
     private final HeritageResourceService heritageResourceService;
+    private final com.lqx.opera.service.InheritorProfileService inheritorProfileService;
+    private final com.lqx.opera.service.SysUserService sysUserService;
 
     public SearchServiceImpl(ProductService productService,
                              PerformanceEventService performanceEventService,
-                             HeritageResourceService heritageResourceService) {
+                             HeritageResourceService heritageResourceService,
+                             com.lqx.opera.service.InheritorProfileService inheritorProfileService,
+                             com.lqx.opera.service.SysUserService sysUserService) {
         this.productService = productService;
         this.performanceEventService = performanceEventService;
         this.heritageResourceService = heritageResourceService;
+        this.inheritorProfileService = inheritorProfileService;
+        this.sysUserService = sysUserService;
     }
 
     @Override
@@ -71,7 +77,7 @@ public class SearchServiceImpl implements SearchService {
                 dto.setOriginalId(e.getEventId());
                 dto.setTitle(e.getTitle());
                 dto.setType("event");
-                dto.setCover(""); // No cover image in PerformanceEvent entity
+                dto.setCover(e.getCoverImage()); // Updated to use coverImage
                 dto.setSubTitle(e.getVenue());
                 dto.setPrice(e.getTicketPrice());
                 return dto;
@@ -98,14 +104,43 @@ public class SearchServiceImpl implements SearchService {
             }).collect(Collectors.toList());
         });
 
+        // 4. Search Inheritors (Users with role 1)
+        CompletableFuture<List<SearchDTO>> inheritorFuture = CompletableFuture.supplyAsync(() -> {
+            // Find users with role 1 and name/realName like keyword
+            List<com.lqx.opera.entity.SysUser> users = sysUserService.list(new LambdaQueryWrapper<com.lqx.opera.entity.SysUser>()
+                    .eq(com.lqx.opera.entity.SysUser::getRole, 1)
+                    .and(w -> w.like(com.lqx.opera.entity.SysUser::getUsername, keyword)
+                             .or()
+                             .like(com.lqx.opera.entity.SysUser::getRealName, keyword))
+                    .last("LIMIT 20"));
+            
+            if (users.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            // Also check inheritor profiles for more details if needed, but SysUser is enough for basic search
+            return users.stream().map(u -> {
+                SearchDTO dto = new SearchDTO();
+                dto.setId(String.valueOf(u.getUserId()));
+                dto.setOriginalId(u.getUserId());
+                dto.setTitle(u.getRealName() != null ? u.getRealName() : u.getUsername());
+                dto.setType("inheritor");
+                dto.setCover(u.getAvatar());
+                dto.setSubTitle("非遗传承人");
+                dto.setPrice(null);
+                return dto;
+            }).collect(Collectors.toList());
+        });
+
         List<SearchDTO> result = new ArrayList<>();
         try {
             // Wait for all to complete
-            CompletableFuture.allOf(productFuture, eventFuture, resourceFuture).join();
+            CompletableFuture.allOf(productFuture, eventFuture, resourceFuture, inheritorFuture).join();
             
             result.addAll(productFuture.get());
             result.addAll(eventFuture.get());
             result.addAll(resourceFuture.get());
+            result.addAll(inheritorFuture.get());
         } catch (Exception e) {
             e.printStackTrace();
             // In case of error, return what we have or empty
