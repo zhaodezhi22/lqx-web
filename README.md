@@ -1,0 +1,3 @@
+# lqx-web
+npm install 
+npm run dev
