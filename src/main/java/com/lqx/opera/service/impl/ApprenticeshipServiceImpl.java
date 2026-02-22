@@ -110,28 +110,8 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
                     studentProfile.setMasterId(mentorProfileId);
                 }
                 inheritorProfileService.updateById(studentProfile);
-            } else {
-                // 如果没有档案，自动创建传承人档案
-                studentProfile = new InheritorProfile();
-                studentProfile.setUserId(apply.getStudentId());
-                studentProfile.setVerifyStatus(1); // 直接认证通过
-                if (mentorProfileId != null) {
-                    studentProfile.setMasterId(mentorProfileId);
-                }
-                studentProfile.setMasterName(mentorName);
-                if (mentorProfile != null) {
-                    studentProfile.setGenre(mentorProfile.getGenre());
-                }
-                studentProfile.setLevel("县/区级"); // 默认为基础等级
-                inheritorProfileService.save(studentProfile);
-
-                // 更新用户角色为传承人
-                SysUser studentUser = sysUserService.getById(apply.getStudentId());
-                if (studentUser != null) {
-                    studentUser.setRole(1);
-                    sysUserService.updateById(studentUser);
-                }
             }
+
 
             // 自动发布社区动态
             SysUser student = sysUserService.getById(apply.getStudentId());
@@ -147,11 +127,6 @@ public class ApprenticeshipServiceImpl extends ServiceImpl<ApprenticeshipApplyMa
             relation.setCreateTime(LocalDateTime.now());
             apprenticeshipRelationMapper.insert(relation);
 
-            // Update User Role to Apprentice (3) if they are Ordinary (0)
-            if (student != null && (student.getRole() == null || student.getRole() == 0)) {
-                student.setRole(3); // 3-Apprentice
-                sysUserService.updateById(student);
-            }
         } else {
             apply.setStatus(2); // 拒绝
         }

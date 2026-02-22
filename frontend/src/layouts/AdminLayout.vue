@@ -21,6 +21,7 @@
             <span>非遗业务</span>
           </template>
           <el-menu-item index="/admin/inheritor-review">传承人审核</el-menu-item>
+          <el-menu-item index="/admin/inheritor-level-audit">传承人等级审核</el-menu-item>
           <el-menu-item index="/admin/resource-audit">资源审核</el-menu-item>
           <el-menu-item index="/admin/event-audit">活动审核</el-menu-item>
           <el-menu-item index="/admin/product-audit">商品审核</el-menu-item>

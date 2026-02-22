@@ -268,7 +268,7 @@
                   <el-table-column label="操作" width="150">
                     <template #default="{ row }">
                       <el-button link type="primary" @click="openSubmit(row)">
-                        {{ row.status === 0 ? '去提交' : '查看/修改' }}
+                        {{ row.status === 0 ? '去提交' : (row.status === 1 ? '查看/修改' : '查看详情') }}
                       </el-button>
                     </template>
                   </el-table-column>
@@ -298,11 +298,21 @@
     </el-dialog>
 
     <!-- Homework Submit Dialog -->
-    <el-dialog v-model="submitDialogVisible" :title="'提交作业: ' + submitForm.taskTitle" width="600px">
+    <el-dialog v-model="submitDialogVisible" :title="submitForm.status === 2 ? '作业详情 (已点评)' : '提交作业'" width="600px">
       <el-form :model="submitForm" label-width="100px">
-        <el-form-item label="演示视频" v-if="submitForm.demoVideoUrl">
-           <video :src="submitForm.demoVideoUrl" controls style="width: 100%; max-height: 200px; background: #000"></video>
-           <div class="tip" style="font-size: 12px; color: #999">师父的演示视频</div>
+        <el-form-item label="演示素材" v-if="submitForm.demoVideoUrl">
+           <div v-if="isImage(submitForm.demoVideoUrl)">
+              <el-image 
+                :src="submitForm.demoVideoUrl" 
+                :preview-src-list="[submitForm.demoVideoUrl]"
+                fit="contain"
+                style="max-height: 300px; width: 100%" 
+              />
+           </div>
+           <div v-else>
+              <video :src="submitForm.demoVideoUrl" controls style="width: 100%; max-height: 300px; background: #000"></video>
+           </div>
+           <div class="tip" style="font-size: 12px; color: #999">师父的演示素材</div>
         </el-form-item>
         <el-form-item label="作业说明">
            <div style="background: #f5f7fa; padding: 10px; border-radius: 4px; width: 100%">{{ submitForm.taskDescription }}</div>
@@ -318,18 +328,84 @@
             placeholder="请填写作业心得或说明..." 
           />
         </el-form-item>
-        <el-form-item label="作业视频URL">
-          <el-input v-model="submitForm.videoUrl" placeholder="请输入视频链接 (如 OSS 地址)" />
+        <el-form-item label="作业文件">
+          <el-upload
+            v-if="submitForm.status !== 2"
+            class="upload-demo"
+            action="/api/file/upload"
+            :limit="1"
+            :on-success="handleHomeworkUploadSuccess"
+            :before-upload="beforeHomeworkUpload"
+            :show-file-list="true"
+            :disabled="submitForm.status === 2"
+          >
+             <el-button type="primary" :disabled="submitForm.status === 2">
+               {{ submitForm.status === 2 ? '作业已点评，不可修改' : '点击上传文件' }}
+             </el-button>
+             <template #tip>
+               <div class="el-upload__tip">
+                 {{ submitForm.videoUrl ? '已上传文件' : '支持图片/视频/音频，最大500MB' }}
+               </div>
+             </template>
+          </el-upload>
+          
+          <div v-if="submitForm.videoUrl" style="margin-top: 10px;">
+             <div v-if="isImage(submitForm.videoUrl)">
+                <el-image 
+                  :src="submitForm.videoUrl" 
+                  :preview-src-list="[submitForm.videoUrl]"
+                  fit="contain"
+                  style="max-height: 200px; max-width: 100%; border: 1px solid #eee; border-radius: 4px;" 
+                />
+             </div>
+             <div v-else>
+                <video :src="submitForm.videoUrl" controls style="max-width: 100%; max-height: 200px; background: #000"></video>
+             </div>
+          </div>
+
+          <div v-if="submitForm.status === 2" style="margin-top: 10px;">
+             <el-tag type="info" effect="plain" style="width: 100%; text-align: center;">
+                作业已点评，不可修改
+             </el-tag>
+          </div>
         </el-form-item>
+        
+        <div v-if="submitForm.status === 2">
+            <el-divider>师父点评</el-divider>
+            <el-form-item label="综合评分">
+               <el-rate
+                    v-model="submitForm.score"
+                    disabled
+                    show-score
+                    text-color="#ff9900"
+                    score-template="{value} 分"
+                />
+            </el-form-item>
+            <el-form-item label="师父寄语">
+                <div style="background: #fdf6ec; padding: 15px; border-radius: 8px; border: 1px solid #faecd8; width: 100%">
+                    <div style="font-weight: bold; color: #e6a23c; margin-bottom: 5px;">
+                        <el-icon><ChatLineSquare /></el-icon> 恩师留言
+                    </div>
+                    <div style="line-height: 1.6; color: #606266;">
+                        {{ submitForm.reviewContent || '暂无评语' }}
+                    </div>
+                </div>
+            </el-form-item>
+            <div style="margin-top: 10px; font-size: 12px; color: #999; text-align: right;">
+                点评时间：{{ formatTime(submitForm.reviewTime) }}
+            </div>
+        </div>
+
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="submitDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="doSubmit">提交作业</el-button>
+          <el-button @click="submitDialogVisible = false">关闭</el-button>
+          <el-button type="primary" @click="doSubmit" :disabled="submitForm.status === 2" v-if="submitForm.status !== 2">提交作业</el-button>
         </span>
       </template>
     </el-dialog>
 
+    <!-- Review Detail Dialog (Removed) -->
     <!-- Address Edit Dialog -->
     <el-dialog v-model="addressDialogVisible" :title="addressForm.id ? '编辑地址' : '新增地址'" width="500px">
         <el-form :model="addressForm" :rules="addressRules" ref="addressFormRef" label-width="100px">
@@ -393,7 +469,7 @@ import { ref, onMounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
-import { User, Phone, ArrowDown, Picture, Camera, Plus, Warning, Edit, Delete, Location } from '@element-plus/icons-vue'
+import { User, Phone, ArrowDown, Picture, Camera, Plus, Warning, Edit, Delete, Location, ChatLineSquare } from '@element-plus/icons-vue'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 
 import { regionData, codeToText } from 'element-china-area-data'
@@ -522,12 +598,19 @@ const openVoucher = (row) => {
 const submitDialogVisible = ref(false)
 const submitForm = reactive({
   assignmentId: null,
+  status: 0,
   taskTitle: '',
   taskDescription: '',
   demoVideoUrl: '',
   content: '',
-  videoUrl: ''
+  videoUrl: '',
+  reviewContent: '',
+  score: 0,
+  reviewTime: ''
 })
+
+const reviewDialogVisible = ref(false)
+const currentReview = ref(null)
 
 // Address Logic
 const addressList = ref([])
@@ -824,11 +907,23 @@ const fetchAssignments = async () => {
 
 const openSubmit = (row) => {
   submitForm.assignmentId = row.assignmentId
+  submitForm.status = row.status
   submitForm.taskTitle = row.taskTitle
   submitForm.taskDescription = row.taskDescription
   submitForm.demoVideoUrl = row.demoVideoUrl
   submitForm.content = row.submissionContent || ''
   submitForm.videoUrl = row.submissionVideoUrl || ''
+  
+  if (row.status === 2) {
+      submitForm.reviewContent = row.reviewContent || '暂无评语'
+      submitForm.score = (row.score || 0) / 20 // Convert 100 scale to 5 scale
+      submitForm.reviewTime = row.reviewTime
+  } else {
+      submitForm.reviewContent = ''
+      submitForm.score = 0
+      submitForm.reviewTime = ''
+  }
+  
   submitDialogVisible.value = true
 }
 
@@ -963,6 +1058,33 @@ const beforeAvatarUpload = (file) => {
     ElMessage.error('上传头像图片大小不能超过 2MB!')
   }
   return isJPG && isLt2M
+}
+
+const handleHomeworkUploadSuccess = (res) => {
+  if (res.code === 200) {
+    submitForm.videoUrl = res.data
+    ElMessage.success('作业上传成功')
+  } else {
+    ElMessage.error(res.message || '上传失败')
+  }
+}
+
+const beforeHomeworkUpload = (file) => {
+  const isVideoOrAudio = file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type.startsWith('image/')
+  const isLt500M = file.size / 1024 / 1024 < 500
+
+  if (!isVideoOrAudio) {
+    ElMessage.error('只能上传视频、音频或图片文件!')
+  }
+  if (!isLt500M) {
+    ElMessage.error('文件大小不能超过 500MB!')
+  }
+  return isVideoOrAudio && isLt500M
+}
+
+const isImage = (url) => {
+  if (!url) return false
+  return /\.(jpeg|jpg|gif|png|webp)$/i.test(url)
 }
 
 const saveProfile = async () => {

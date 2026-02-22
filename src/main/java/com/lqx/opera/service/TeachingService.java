@@ -42,7 +42,12 @@ public interface TeachingService extends IService<ApprenticeTask> {
      * Submit a task
      */
     void submitTask(Long studentId, Long assignmentId, String content, String videoUrl);
-    
+
+    /**
+     * Update a published task
+     */
+    void updateTask(Long masterId, Long taskId, String title, String description, String videoUrl);
+
     @lombok.Data
     class CommentDto {
         private Long commentId;
@@ -85,5 +90,7 @@ public interface TeachingService extends IService<ApprenticeTask> {
         private String submissionVideoUrl;
         private java.time.LocalDateTime submitTime;
         private java.time.LocalDateTime reviewTime;
+        private String reviewContent;
+        private Integer score;
     }
 }

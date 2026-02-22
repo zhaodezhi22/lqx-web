@@ -95,6 +95,23 @@ public class TeachingController {
     }
 
     /**
+     * 修改任务
+     */
+    @PutMapping("/task/{id}")
+    @RequireRole(1)
+    public Result<Boolean> updateTask(@PathVariable Long id, @RequestBody PublishTaskRequest req, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+        
+        try {
+            teachingService.updateTask(userId, id, req.getTitle(), req.getDescription(), req.getVideoUrl());
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
      * 获取任务的提交情况
      */
     @GetMapping("/task/{id}/submissions")

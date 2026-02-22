@@ -19,10 +19,12 @@ public class InheritorController {
 
     private final InheritorProfileService inheritorProfileService;
     private final SysUserService sysUserService;
+    private final com.lqx.opera.service.InheritorLevelApplyService inheritorLevelApplyService;
 
-    public InheritorController(InheritorProfileService inheritorProfileService, SysUserService sysUserService) {
+    public InheritorController(InheritorProfileService inheritorProfileService, SysUserService sysUserService, com.lqx.opera.service.InheritorLevelApplyService inheritorLevelApplyService) {
         this.inheritorProfileService = inheritorProfileService;
         this.sysUserService = sysUserService;
+        this.inheritorLevelApplyService = inheritorLevelApplyService;
     }
 
     @GetMapping("/featured")
@@ -236,15 +238,49 @@ public class InheritorController {
     public Result<Boolean> updateMyProfile(@RequestBody InheritorProfile profile, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) return Result.fail(401, "未登录");
+        
         InheritorProfile exist = inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
                 .eq(InheritorProfile::getUserId, userId));
         if (exist == null) return Result.fail(404, "档案不存在");
+        
+        // Prevent level modification directly
+        profile.setLevel(exist.getLevel());
         
         profile.setId(exist.getId());
         profile.setUserId(userId);
         profile.setVerifyStatus(exist.getVerifyStatus());
         
-        return inheritorProfileService.updateById(profile) ? Result.success(true) : Result.fail("更新失败");
+        boolean ok = inheritorProfileService.updateById(profile);
+        return ok ? Result.success(true) : Result.fail("更新失败");
+    }
+    
+    /**
+     * 提交等级变更申请
+     */
+    @PostMapping("/level/apply")
+    @RequireRole(1)
+    public Result<Boolean> applyLevelChange(@RequestBody com.lqx.opera.entity.InheritorLevelApply apply, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+        
+        try {
+            inheritorLevelApplyService.submitApply(userId, apply.getCurrentLevel(), apply.getApplyLevel(), apply.getReason(), apply.getProofMaterials());
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    /**
+     * 获取我的最新等级变更申请
+     */
+    @GetMapping("/level/my-apply")
+    @RequireRole(1)
+    public Result<com.lqx.opera.entity.InheritorLevelApply> getMyLevelApply(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+        
+        return Result.success(inheritorLevelApplyService.getLatestApply(userId));
     }
 
     private void populateMasterName(InheritorProfile profile) {

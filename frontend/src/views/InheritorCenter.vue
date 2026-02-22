@@ -8,7 +8,11 @@
           <h3>传承人档案</h3>
           <el-form :model="profileForm" label-width="100px">
             <el-form-item label="等级">
-              <el-input v-model="profileForm.level" disabled />
+              <el-input v-model="profileForm.level" disabled>
+                 <template #append>
+                    <el-button @click="openLevelApply">申请升级</el-button>
+                 </template>
+              </el-input>
             </el-form-item>
             <el-form-item label="师承">
               <el-input v-model="profileForm.masterName" :disabled="!!profileForm.masterId" placeholder="未绑定师父，可手动填写" />
@@ -81,7 +85,7 @@
       <!-- 7. 授业管理 (Teaching) -->
       <el-tab-pane label="授业管理" name="teaching">
         <div class="toolbar">
-           <el-button type="primary" @click="openPublishDialog">发布新任务</el-button>
+           <el-button type="primary" @click="openPublishDialog()">发布新任务</el-button>
         </div>
         
         <el-table :data="tasksList" style="width: 100%; margin-top: 20px;" v-loading="tasksLoading">
@@ -89,8 +93,9 @@
           <el-table-column prop="createdTime" label="发布时间">
              <template #default="scope">{{ formatDate(scope.row.createdTime) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="150">
+          <el-table-column label="操作" width="200">
             <template #default="scope">
+              <el-button link type="primary" @click="openPublishDialog(scope.row)">编辑</el-button>
               <el-button link type="primary" @click="openSubmissionDrawer(scope.row)">查看作业</el-button>
             </template>
           </el-table-column>
@@ -260,7 +265,7 @@
     </el-tabs>
 
     <!-- Teaching: Publish Task Dialog -->
-    <el-dialog v-model="publishDialogVisible" title="发布任务" width="500px">
+    <el-dialog v-model="publishDialogVisible" :title="publishForm.id ? '编辑任务' : '发布任务'" width="500px">
       <el-form :model="publishForm" label-width="80px">
         <el-form-item label="标题">
           <el-input v-model="publishForm.title" placeholder="如：拉魂腔经典选段练习" />
@@ -268,28 +273,28 @@
         <el-form-item label="描述">
           <el-input v-model="publishForm.description" type="textarea" :rows="3" />
         </el-form-item>
-        <el-form-item label="指定弟子">
+        <el-form-item label="指定弟子" v-if="!publishForm.id">
            <el-select v-model="publishForm.studentIds" multiple placeholder="请选择弟子" style="width: 100%">
              <el-option v-for="s in myApprentices" :key="s.studentId" :label="s.name" :value="s.studentId" />
            </el-select>
         </el-form-item>
-        <el-form-item label="示范视频">
+        <el-form-item label="示范素材">
            <el-upload
               class="upload-demo"
               action="/api/file/upload"
               :limit="1"
               :on-success="handleTaskVideoSuccess"
               :before-upload="beforeUpload">
-              <el-button type="primary">上传视频</el-button>
+              <el-button type="primary">上传图片/视频</el-button>
               <template #tip>
-                <div class="el-upload__tip">{{ publishForm.videoUrl ? '已上传' : '支持mp4等格式' }}</div>
+                <div class="el-upload__tip">{{ publishForm.videoUrl ? '已上传: ' + publishForm.videoUrl : '支持mp4, jpg, png等格式' }}</div>
               </template>
             </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="publishDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="publishSubmitting" @click="submitTask">发布</el-button>
+        <el-button type="primary" :loading="publishSubmitting" @click="submitTask">提交</el-button>
       </template>
     </el-dialog>
 
@@ -341,7 +346,10 @@
       </div>
       
       <el-form>
-         <el-form-item>
+         <el-form-item label="评分">
+           <el-rate v-model="reviewScore" show-score allow-half />
+         </el-form-item>
+         <el-form-item label="评语">
            <el-input v-model="newComment" type="textarea" :rows="2" placeholder="写下您的点评..." />
          </el-form-item>
       </el-form>
@@ -547,6 +555,59 @@
        </template>
     </el-dialog>
 
+    <!-- Level Apply Dialog -->
+    <el-dialog v-model="levelApplyDialogVisible" title="申请等级变更" width="500px">
+        <el-alert v-if="existingLevelApply" 
+                  :title="'您已有待审核的申请: 申请变更至 ' + existingLevelApply.applyLevel" 
+                  type="warning" 
+                  show-icon 
+                  :closable="false" 
+                  style="margin-bottom: 20px" 
+        />
+        
+        <el-form :model="levelApplyForm" label-width="100px" v-if="!existingLevelApply">
+            <el-form-item label="当前等级">
+                <el-input v-model="profileForm.level" disabled />
+            </el-form-item>
+            <el-form-item label="申请等级">
+                <el-select v-model="levelApplyForm.applyLevel">
+                   <el-option label="国家级" value="国家级" />
+                   <el-option label="省级" value="省级" />
+                   <el-option label="市级" value="市级" />
+                   <el-option label="县/区级" value="县/区级" />
+                </el-select>
+            </el-form-item>
+            <el-form-item label="申请理由">
+                <el-input v-model="levelApplyForm.reason" type="textarea" :rows="3" />
+            </el-form-item>
+            <el-form-item label="佐证材料">
+               <el-upload
+                  class="upload-demo"
+                  action="/api/file/upload"
+                  :limit="3"
+                  :on-success="handleProofSuccess"
+                  :before-upload="beforeUpload"
+                  :file-list="levelApplyFileList">
+                  <el-button type="primary">点击上传</el-button>
+                  <template #tip>
+                    <div class="el-upload__tip">支持jpg/png/pdf等格式</div>
+                  </template>
+                </el-upload>
+            </el-form-item>
+        </el-form>
+        
+        <div v-else>
+            <p><strong>申请等级：</strong> {{ existingLevelApply.applyLevel }}</p>
+            <p><strong>申请时间：</strong> {{ formatDate(existingLevelApply.createTime) }}</p>
+            <p><strong>当前状态：</strong> <el-tag type="warning">审核中</el-tag></p>
+        </div>
+
+        <template #footer>
+            <el-button @click="levelApplyDialogVisible = false">关闭</el-button>
+            <el-button type="primary" @click="submitLevelApply" v-if="!existingLevelApply">提交申请</el-button>
+        </template>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -608,6 +669,66 @@ const profileForm = reactive({
   artisticCareer: ''
 })
 const profileLoading = ref(false)
+
+// Level Apply Logic
+const levelApplyDialogVisible = ref(false)
+const existingLevelApply = ref(null)
+const levelApplyForm = reactive({
+    applyLevel: '',
+    reason: '',
+    proofMaterials: [] // list of urls
+})
+const levelApplyFileList = ref([])
+
+const openLevelApply = async () => {
+    // Check existing
+    try {
+        const res = await request.get('/inheritor/level/my-apply')
+        if (res.code === 200 && res.data && res.data.status === 0) {
+            existingLevelApply.value = res.data
+        } else {
+            existingLevelApply.value = null
+            // Reset form
+            levelApplyForm.applyLevel = ''
+            levelApplyForm.reason = ''
+            levelApplyForm.proofMaterials = []
+            levelApplyFileList.value = []
+        }
+        levelApplyDialogVisible.value = true
+    } catch (e) {
+        ElMessage.error('获取申请状态失败')
+    }
+}
+
+const handleProofSuccess = (res, file) => {
+    if (res.code === 200) {
+        levelApplyForm.proofMaterials.push(res.data)
+    }
+}
+
+const submitLevelApply = async () => {
+    if (!levelApplyForm.applyLevel) {
+        ElMessage.warning('请选择申请等级')
+        return
+    }
+    if (!levelApplyForm.reason) {
+        ElMessage.warning('请填写申请理由')
+        return
+    }
+    
+    try {
+        await request.post('/inheritor/level/apply', {
+            currentLevel: profileForm.level,
+            applyLevel: levelApplyForm.applyLevel,
+            reason: levelApplyForm.reason,
+            proofMaterials: JSON.stringify(levelApplyForm.proofMaterials)
+        })
+        ElMessage.success('申请提交成功')
+        levelApplyDialogVisible.value = false
+    } catch (e) {
+        ElMessage.error(e.response?.data?.message || '提交失败')
+    }
+}
 
 const fetchProfile = async () => {
   try {
@@ -1014,6 +1135,7 @@ const currentTaskSubmissions = ref([])
 const commentDialogVisible = ref(false)
 const submissionComments = ref([])
 const newComment = ref('')
+const reviewScore = ref(5)
 const currentReviewItem = ref(null)
 const currentAssignmentId = ref(null)
 
@@ -1029,7 +1151,7 @@ const fetchTasks = async () => {
     }
 }
 
-const openPublishDialog = async () => {
+const openPublishDialog = async (row = null) => {
     // 1. Fetch apprentices
     try {
         const res = await request.get('/teaching/my-apprentices')
@@ -1039,11 +1161,20 @@ const openPublishDialog = async () => {
         return
     }
     
-    // 2. Reset form
-    publishForm.title = ''
-    publishForm.description = ''
-    publishForm.videoUrl = ''
-    publishForm.studentIds = []
+    // 2. Reset or Fill form
+    if (row) {
+        publishForm.id = row.id
+        publishForm.title = row.title
+        publishForm.description = row.description
+        publishForm.videoUrl = row.demoVideoUrl
+        publishForm.studentIds = [] // Update not need studentIds
+    } else {
+        publishForm.id = null
+        publishForm.title = ''
+        publishForm.description = ''
+        publishForm.videoUrl = ''
+        publishForm.studentIds = []
+    }
     
     publishDialogVisible.value = true
 }
@@ -1057,19 +1188,28 @@ const submitTask = async () => {
         ElMessage.warning('请输入任务标题')
         return
     }
-    if (publishForm.studentIds.length === 0) {
+    if (!publishForm.id && publishForm.studentIds.length === 0) {
         ElMessage.warning('请选择至少一名弟子')
         return
     }
     
     publishSubmitting.value = true
     try {
-        await request.post('/teaching/task', publishForm)
-        ElMessage.success('任务发布成功')
+        if (publishForm.id) {
+            await request.put(`/teaching/task/${publishForm.id}`, {
+                title: publishForm.title,
+                description: publishForm.description,
+                videoUrl: publishForm.videoUrl
+            })
+            ElMessage.success('任务更新成功')
+        } else {
+            await request.post('/teaching/task', publishForm)
+            ElMessage.success('任务发布成功')
+        }
         publishDialogVisible.value = false
         fetchTasks()
     } catch (e) {
-        ElMessage.error(e?.response?.data?.message || '发布失败')
+        ElMessage.error(e?.response?.data?.message || '操作失败')
     } finally {
         publishSubmitting.value = false
     }
@@ -1090,6 +1230,7 @@ const openReviewDialog = async (assignment) => {
     currentReviewItem.value = assignment
     currentAssignmentId.value = assignment.id
     newComment.value = ''
+    reviewScore.value = 5
     commentDialogVisible.value = true
     
     // Fetch comments
@@ -1109,9 +1250,13 @@ const submitReview = async () => {
     }
     
     try {
+        const rawScore = reviewScore.value != null ? reviewScore.value : 0
+        const finalScore = Math.round(rawScore * 20)
+        
         await request.post('/teaching/review', {
             assignmentId: currentAssignmentId.value,
-            comment: newComment.value
+            comment: newComment.value,
+            score: finalScore
         })
         ElMessage.success('点评成功')
         newComment.value = ''

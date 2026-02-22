@@ -63,3 +63,16 @@ CREATE TABLE IF NOT EXISTS home_content (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inheritor_level_apply (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    current_level VARCHAR(50),
+    apply_level VARCHAR(50),
+    reason TEXT,
+    proof_materials TEXT,
+    status INT DEFAULT 0 COMMENT '0-审核中, 1-通过, 2-拒绝',
+    audit_remark TEXT,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    audit_time DATETIME DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

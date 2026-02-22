@@ -131,6 +131,7 @@ public class TeachingServiceImpl extends ServiceImpl<ApprenticeTaskMapper, Appre
         comment.setTargetType(5); // 5 = Task Assignment
         comment.setContent(commentContent);
         comment.setIsOfficial(1); // Master Review
+        comment.setStatus(0); // Normal, Visible
         comment.setCreatedTime(LocalDateTime.now());
         communityCommentMapper.insert(comment);
 
@@ -201,6 +202,8 @@ public class TeachingServiceImpl extends ServiceImpl<ApprenticeTaskMapper, Appre
             dto.setSubmissionVideoUrl(a.getSubmissionVideoUrl());
             dto.setSubmitTime(a.getSubmitTime());
             dto.setReviewTime(a.getReviewTime());
+            dto.setReviewContent(a.getReviewContent());
+            dto.setScore(a.getScore());
 
             ApprenticeTask t = taskMap.get(a.getTaskId());
             if (t != null) {
@@ -230,6 +233,9 @@ public class TeachingServiceImpl extends ServiceImpl<ApprenticeTaskMapper, Appre
         if (!assignment.getStudentId().equals(studentId)) {
             throw new RuntimeException("无权提交此任务");
         }
+        if (assignment.getStatus() == 2) {
+            throw new RuntimeException("作业已点评，不可修改");
+        }
 
         assignment.setSubmissionContent(content);
         assignment.setSubmissionVideoUrl(videoUrl);
@@ -237,5 +243,22 @@ public class TeachingServiceImpl extends ServiceImpl<ApprenticeTaskMapper, Appre
         assignment.setSubmitTime(LocalDateTime.now());
         
         taskAssignmentMapper.updateById(assignment);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateTask(Long masterId, Long taskId, String title, String description, String videoUrl) {
+        ApprenticeTask task = this.getById(taskId);
+        if (task == null) {
+            throw new RuntimeException("任务不存在");
+        }
+        if (!task.getMasterId().equals(masterId)) {
+            throw new RuntimeException("无权修改此任务");
+        }
+        
+        task.setTitle(title);
+        task.setDescription(description);
+        task.setDemoVideoUrl(videoUrl);
+        this.updateById(task);
     }
 }

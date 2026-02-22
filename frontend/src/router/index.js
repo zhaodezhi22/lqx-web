@@ -41,6 +41,7 @@ const routes = [
     children: [
       { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/AuditorDashboard.vue') },
       { path: 'inheritor-review', name: 'AdminInheritorReview', component: () => import('../views/AdminInheritorReview.vue') },
+      { path: 'inheritor-level-audit', name: 'AdminInheritorLevelAudit', component: () => import('../views/AdminInheritorLevelAudit.vue') },
       { path: 'resource-audit', name: 'AdminResourceAudit', component: () => import('../views/AdminResourceAudit.vue') },
       { path: 'event-audit', name: 'AdminEventAudit', component: () => import('../views/AdminEventAudit.vue') },
       { path: 'product-audit', name: 'AdminProductAudit', component: () => import('../views/AdminProductAudit.vue') },
