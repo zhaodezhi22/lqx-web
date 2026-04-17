@@ -30,6 +30,7 @@ const routes = [
       { path: 'user/:id', name: 'UserPublicProfile', component: () => import('../views/UserPublicProfile.vue') },
       { path: 'profile', name: 'UserProfile', component: () => import('../views/UserProfile.vue') },
       { path: 'content/:id', name: 'ContentDetail', component: () => import('../views/ContentDetail.vue') },
+      { path: 'chat', name: 'Chat', component: () => import('../views/Chat.vue') },
     ]
   },
 

@@ -142,7 +142,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, View, Pointer, Delete } from '@element-plus/icons-vue'
+import { ArrowLeft, View, Pointer, Delete, ChatDotRound } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const route = useRoute()
@@ -214,6 +214,10 @@ const submitReply = async () => {
 
 const goProfile = (userId) => {
   router.push({ name: 'UserPublicProfile', params: { id: userId } })
+}
+
+const handleChat = (targetId) => {
+  router.push({ path: '/chat', query: { userId: targetId } })
 }
 
 const fetchDetail = async () => {

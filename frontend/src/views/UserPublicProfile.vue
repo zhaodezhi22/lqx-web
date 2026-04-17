@@ -20,6 +20,16 @@
           <div v-if="profile.awards" class="bio">
             <strong>获奖经历:</strong> {{ profile.awards }}
           </div>
+          
+          <!-- Actions -->
+          <div class="actions" v-if="currentUserId && currentUserId != profile.userId" style="margin-top: 15px;">
+            <el-button v-if="isFriend" type="primary" @click="handleSendMessage">
+              <el-icon style="margin-right: 5px"><ChatDotRound /></el-icon> 发送消息
+            </el-button>
+            <el-button v-else type="primary" @click="handleAddFriend">
+              <el-icon style="margin-right: 5px"><Plus /></el-icon> 加为好友
+            </el-button>
+          </div>
         </div>
       </div>
 
@@ -91,7 +101,8 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ChatDotRound, Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 
@@ -106,6 +117,8 @@ const resources = ref([])
 const products = ref([])
 const posts = ref([])
 const events = ref([])
+const currentUserId = ref(null)
+const isFriend = ref(false)
 
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 const resourcePlaceholder = 'https://via.placeholder.com/400x220?text=Heritage'
@@ -127,6 +140,15 @@ const roleName = computed(() => {
 
 const fetchData = async () => {
   loading.value = true
+  
+  // Get current user
+  const userStr = localStorage.getItem('user')
+  if (userStr) {
+    try {
+      currentUserId.value = JSON.parse(userStr).userId
+    } catch (e) {}
+  }
+
   try {
     const id = userId.value
     if (!id) {
@@ -134,6 +156,19 @@ const fetchData = async () => {
       loading.value = false
       return
     }
+    
+    // Check friend status if logged in
+    if (currentUserId.value && currentUserId.value != id) {
+       try {
+         const fRes = await request.get('/im/friend/list')
+         if (fRes.code === 200 && fRes.data) {
+           isFriend.value = fRes.data.some(f => f.userId == id)
+         }
+       } catch (e) {
+         console.error('Failed to check friend status', e)
+       }
+    }
+
     const pRes = await request.get(`/public/user/${id}/profile`)
     if (pRes.code === 200 && pRes.data) {
       profile.value = pRes.data
@@ -175,6 +210,36 @@ const goEvent = (id) => router.push({ name: 'EventDetail', params: { id } })
 const openProduct = (item) => {
   currentProductId.value = item.productId
   productVisible.value = true
+}
+
+const handleSendMessage = () => {
+  router.push({ path: '/chat', query: { userId: profile.value.userId } })
+}
+
+const handleAddFriend = async () => {
+  try {
+    const { value: reason } = await ElMessageBox.prompt('请输入验证信息', '添加好友', {
+      confirmButtonText: '发送申请',
+      cancelButtonText: '取消',
+      inputPlaceholder: '我是...',
+    })
+    
+    const res = await request.post('/im/friend/request', {
+      friendId: profile.value.userId,
+      reason: reason || '请求添加好友'
+    })
+    
+    if (res.code === 200) {
+      ElMessage.success('好友申请已发送')
+    } else {
+      ElMessage.error(res.message || '发送失败')
+    }
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error(e)
+      ElMessage.error('操作失败')
+    }
+  }
 }
 
 // Formatters

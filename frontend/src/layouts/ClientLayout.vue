@@ -91,11 +91,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, Search, Calendar } from '@element-plus/icons-vue'
+import { ArrowDown, Search, Calendar, Message } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
+import { useChatStore } from '../stores/chat'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
+const chatStore = useChatStore()
+const { totalUnreadCount } = storeToRefs(chatStore)
 const username = ref('')
 const userId = ref(null)
 const role = ref(0)
@@ -104,6 +108,12 @@ const searchQuery = ref('')
 
 onMounted(() => {
   const userStr = localStorage.getItem('user')
+  const token = localStorage.getItem('token')
+  
+  if (token) {
+    chatStore.connect(token)
+  }
+
   if (userStr) {
     try {
       const user = JSON.parse(userStr)
@@ -280,6 +290,35 @@ const handleQuickSignIn = async () => {
 
 .signin-icon:hover {
   transform: scale(1.1);
+}
+
+.message-icon {
+  margin-right: 20px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  font-size: 20px;
+  color: #606266;
+}
+
+.message-icon:hover {
+  color: #AA1D1D;
+}
+
+.unread-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #f56c6c;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 18px;
+  height: 18px;
+  min-width: 18px;
+  text-align: center;
 }
 
 .el-dropdown-link {

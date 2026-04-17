@@ -76,3 +76,32 @@ CREATE TABLE IF NOT EXISTS inheritor_level_apply (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     audit_time DATETIME DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- IM System Tables
+CREATE TABLE IF NOT EXISTS im_friend (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    friend_id BIGINT NOT NULL COMMENT '好友ID',
+    remark VARCHAR(100) COMMENT '备注名',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_friend (user_id, friend_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友关系表';
+
+CREATE TABLE IF NOT EXISTS im_friend_request (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    from_id BIGINT NOT NULL COMMENT '申请人ID',
+    to_id BIGINT NOT NULL COMMENT '被申请人ID',
+    reason VARCHAR(255) COMMENT '申请理由',
+    status INT DEFAULT 0 COMMENT '0待处理, 1已通过, 2已拒绝',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友申请表';
+
+CREATE TABLE IF NOT EXISTS im_chat_message (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    from_id BIGINT NOT NULL COMMENT '发送者ID',
+    to_id BIGINT NOT NULL COMMENT '接收者ID',
+    content TEXT NOT NULL COMMENT '消息内容',
+    type INT DEFAULT 0 COMMENT '0文本, 1图片, 2撤回提示',
+    is_recalled INT DEFAULT 0 COMMENT '0否, 1是',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='聊天消息表';

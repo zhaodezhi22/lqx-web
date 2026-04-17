@@ -68,21 +68,34 @@
         </el-col>
       </el-row>
     </div>
+
+    <!-- Floating Chat Button -->
+    <div class="floating-chat" @click="$router.push('/chat')">
+      <el-badge :value="totalUnreadCount" :hidden="totalUnreadCount === 0" class="chat-badge">
+        <div class="chat-btn" title="联系客服/好友">
+          <el-icon :size="24"><ChatDotRound /></el-icon>
+        </div>
+      </el-badge>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { VideoPlay, Goods, User, Setting } from '@element-plus/icons-vue'
+import { VideoPlay, Goods, User, Setting, ChatDotRound } from '@element-plus/icons-vue'
 import HomeNews from '../components/home/HomeNews.vue'
 import HomeInheritors from '../components/home/HomeInheritors.vue'
 import HomeResources from '../components/home/HomeResources.vue'
 import HomeEvents from '../components/home/HomeEvents.vue'
 import HomeProducts from '../components/home/HomeProducts.vue'
 import request from '../utils/request'
+import { useChatStore } from '../stores/chat'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
+const chatStore = useChatStore()
+const { totalUnreadCount } = storeToRefs(chatStore)
 const role = ref(0)
 const featuredResources = ref([])
 const featuredInheritors = ref([])
@@ -232,6 +245,33 @@ onMounted(fetchFeatured)
 <style scoped>
 .home-page {
   padding-bottom: 60px;
+}
+
+/* Floating Chat */
+.floating-chat {
+  position: fixed;
+  bottom: 100px;
+  right: 40px;
+  z-index: 2000;
+  cursor: pointer;
+}
+
+.chat-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #AA1D1D;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: all 0.3s;
+}
+
+.chat-btn:hover {
+  transform: scale(1.1);
+  background-color: #c92e2e;
 }
 
 /* Hero Carousel */

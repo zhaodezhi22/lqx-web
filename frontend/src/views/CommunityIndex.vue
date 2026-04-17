@@ -182,7 +182,7 @@ const handlePublish = async () => {
         
         try {
           // Remove manual Content-Type header to let browser set boundary
-          const res = await request.post('/file/upload', formData)
+          const res = await request.post('/api/file/upload', formData)
           
           console.log('Upload response:', res)
           if (res.code === 200) {
