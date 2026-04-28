@@ -19,7 +19,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder> implements MallOrderService {
@@ -158,6 +160,7 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
             throw new RuntimeException("当前状态无法申请退款");
         }
         order.setStatus(4); // 4-Refund Pending
+        order.setRefundApplyTime(LocalDateTime.now());
         return this.updateById(order);
     }
 
@@ -173,24 +176,41 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         }
 
         if (pass) {
-            // 通过：状态改为5-Refunded
-            // 恢复库存
-            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<MallOrderItem> query = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
-            query.eq(MallOrderItem::getOrderId, order.getId());
-            List<MallOrderItem> items = mallOrderItemService.list(query);
-            for (MallOrderItem item : items) {
-                Product p = productService.getById(item.getProductId());
-                if (p != null) {
-                    p.setStock(p.getStock() + item.getQuantity());
-                    productService.updateById(p);
-                }
-            }
-            order.setStatus(5);
+            approveRefund(order);
         } else {
-            // 驳回：状态回退到1-Paid
-            order.setStatus(1);
+            rejectRefund(order);
         }
         return this.updateById(order);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean auditRefundBySeller(Long orderId, boolean pass, Long sellerId) {
+        if (sellerId == null) {
+            throw new RuntimeException("卖家信息缺失");
+        }
+        if (!checkOrderOwnership(orderId, sellerId)) {
+            throw new RuntimeException("无权审核此订单");
+        }
+        return auditRefund(orderId, pass);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int autoApproveExpiredRefunds() {
+        List<MallOrder> expiredOrders = this.lambdaQuery()
+                .eq(MallOrder::getStatus, 4)
+                .isNotNull(MallOrder::getRefundApplyTime)
+                .lt(MallOrder::getRefundApplyTime, LocalDateTime.now().minusHours(48))
+                .list();
+
+        int count = 0;
+        for (MallOrder order : expiredOrders) {
+            approveRefund(order);
+            this.updateById(order);
+            count++;
+        }
+        return count;
     }
 
     @Override
@@ -215,6 +235,42 @@ public class MallOrderServiceImpl extends ServiceImpl<MallOrderMapper, MallOrder
         if (payAmount != null && payAmount.compareTo(BigDecimal.ZERO) > 0) {
             pointsService.earnPoints(userId, payAmount.intValue(), "购物返利 (订单 " + order.getOrderNo() + ")");
         }
+    }
+
+    private void approveRefund(MallOrder order) {
+        rollbackStock(order.getId());
+        order.setStatus(5);
+        order.setRefundApplyTime(null);
+    }
+
+    private void rejectRefund(MallOrder order) {
+        order.setStatus(1);
+        order.setRefundApplyTime(null);
+    }
+
+    private void rollbackStock(Long orderId) {
+        List<MallOrderItem> items = mallOrderItemService.list(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<MallOrderItem>()
+                .eq(MallOrderItem::getOrderId, orderId));
+        for (MallOrderItem item : items) {
+            Product p = productService.getById(item.getProductId());
+            if (p != null) {
+                p.setStock(p.getStock() + item.getQuantity());
+                productService.updateById(p);
+            }
+        }
+    }
+
+    private boolean checkOrderOwnership(Long orderId, Long sellerId) {
+        List<MallOrderItem> items = mallOrderItemService.list(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<MallOrderItem>()
+                .eq(MallOrderItem::getOrderId, orderId));
+        Set<Long> productIds = items.stream().map(MallOrderItem::getProductId).collect(Collectors.toSet());
+        if (productIds.isEmpty()) {
+            return false;
+        }
+        long count = productService.count(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Product>()
+                .in(Product::getProductId, productIds)
+                .eq(Product::getSellerId, sellerId));
+        return count > 0;
     }
 }
 

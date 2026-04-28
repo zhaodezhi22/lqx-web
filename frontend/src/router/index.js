@@ -4,6 +4,7 @@ const routes = [
   // Auth routes (Standalone)
   { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
   { path: '/register', name: 'Register', component: () => import('../views/Register.vue') },
+  { path: '/forbidden', name: 'Forbidden', component: () => import('../views/Forbidden.vue') },
 
   // Client Portal (Roles 0 & 1)
   {
@@ -85,9 +86,19 @@ router.beforeEach((to, from, next) => {
 
   // Admin Routes Guard
   if (to.path.startsWith('/admin')) {
-    if (!token || role < 2) {
-      alert('无权访问后台管理系统')
-      return next({ path: '/' })
+    if (!token) {
+      return next({
+        name: 'Login',
+        query: { redirect: to.fullPath }
+      })
+    }
+    if (role < 2) {
+      return next({
+        name: 'Forbidden',
+        query: {
+          message: '当前账号没有管理员权限，无法进入后台管理界面。'
+        }
+      })
     }
   }
 

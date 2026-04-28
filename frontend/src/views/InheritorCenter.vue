@@ -133,7 +133,8 @@
           <el-table-column label="操作" fixed="right" width="180">
             <template #default="scope">
                <el-button v-if="scope.row.status === 1" type="primary" size="small" @click="openShipDialog(scope.row)">发货</el-button>
-               <el-button v-if="scope.row.status === 1 || scope.row.status === 4" type="danger" size="small" @click="handleRefund(scope.row)">退款/取消</el-button>
+               <el-button v-if="scope.row.status === 4" type="success" size="small" @click="handleRefundAudit(scope.row, true)">同意退款</el-button>
+               <el-button v-if="scope.row.status === 4" type="danger" size="small" @click="handleRefundAudit(scope.row, false)">驳回退款</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -1375,13 +1376,17 @@ const confirmShip = async () => {
     }
 }
 
-const handleRefund = (row) => {
-    ElMessageBox.confirm('确定要退款/取消该订单吗？库存将自动回滚。', '提示', {
-        type: 'warning'
-    }).then(async () => {
+const handleRefundAudit = (row, pass) => {
+    ElMessageBox.confirm(
+        pass ? '确定同意该退款申请吗？同意后将自动回滚库存。' : '确定驳回该退款申请吗？驳回后订单会恢复为待发货。',
+        pass ? '同意退款' : '驳回退款',
+        { type: pass ? 'warning' : 'info' }
+    ).then(async () => {
         try {
-            await request.post(`/seller/orders/refund/${row.id}`)
-            ElMessage.success('操作成功')
+            await request.post(`/seller/orders/refund/audit/${row.id}`, null, {
+                params: { pass }
+            })
+            ElMessage.success(pass ? '已同意退款' : '已驳回退款')
             fetchSellerOrders()
         } catch(e) {
             ElMessage.error(e.response?.data?.message || '操作失败')

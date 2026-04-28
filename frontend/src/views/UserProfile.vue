@@ -142,12 +142,18 @@
                     <el-tag type="danger" v-else>已取消</el-tag>
                   </template>
                 </el-table-column>
+                <el-table-column label="剩余支付时间" width="130">
+                  <template #default="{ row }">
+                    <span v-if="row.status === 0" class="ticket-countdown">{{ formatTicketCountdown(row) }}</span>
+                    <span v-else>-</span>
+                  </template>
+                </el-table-column>
                 <el-table-column label="操作" width="220">
                   <template #default="{ row }">
                     <el-button link type="primary" @click="$router.push(`/events/${row.eventId}`)">查看演出</el-button>
                     <el-button link type="success" v-if="row.status === 1" @click="openVoucher(row)">查看凭证</el-button>
                     <el-button link type="danger" v-if="row.status === 1" @click="handleRefund(row)">退票</el-button>
-                    <el-button link type="primary" v-if="row.status === 0">去支付</el-button>
+                    <el-button link type="primary" v-if="row.status === 0" @click="goToTicketPay(row)">去支付</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -465,7 +471,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, watch } from 'vue'
+import { ref, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
@@ -578,6 +584,8 @@ const statusTagType = (s) => {
 
 const tickets = ref([])
 const ticketsLoading = ref(false)
+const ticketNowTs = ref(Date.now())
+let ticketCountdownTimer = null
 
 const assignments = ref([])
 const assignmentsLoading = ref(false)
@@ -768,6 +776,25 @@ const fetchTickets = async () => {
   } finally {
     ticketsLoading.value = false
   }
+}
+
+const getTicketCreatedTimestamp = (row) => {
+  if (!row?.createdTime) return 0
+  const normalized = String(row.createdTime).replace(' ', 'T')
+  const timestamp = new Date(normalized).getTime()
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+const getTicketRemainingSeconds = (row) => {
+  if (row?.status !== 0) return 0
+  const expireTs = getTicketCreatedTimestamp(row) + 30 * 1000
+  return Math.max(0, Math.ceil((expireTs - ticketNowTs.value) / 1000))
+}
+
+const formatTicketCountdown = (row) => {
+  const seconds = getTicketRemainingSeconds(row)
+  if (seconds <= 0) return '已超时'
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 const fetchMyMaster = async () => {
@@ -1012,6 +1039,15 @@ const handleRefund = (row) => {
     .catch(() => {})
 }
 
+const goToTicketPay = (row) => {
+  router.push({
+    path: `/events/${row.eventId}`,
+    query: {
+      payOrderId: row.orderId
+    }
+  })
+}
+
 const handleMallRefund = (row) => {
   ElMessageBox.confirm(
     '确定要申请取消订单并退款吗？需要等待审核员审核。',
@@ -1126,6 +1162,19 @@ onMounted(() => {
     fetchPointsInfo()
     fetchPointsLog()
   }
+  ticketCountdownTimer = window.setInterval(() => {
+    ticketNowTs.value = Date.now()
+    if (activeTab.value === 'tickets' && tickets.value.some(item => item.status === 0 && getTicketRemainingSeconds(item) <= 0)) {
+      fetchTickets()
+    }
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (ticketCountdownTimer) {
+    window.clearInterval(ticketCountdownTimer)
+    ticketCountdownTimer = null
+  }
 })
 
 // Combined watch is better, but separate is fine.
@@ -1148,6 +1197,10 @@ watch(activeTab, (val) => {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+}
+.ticket-countdown {
+  color: #e6a23c;
+  font-weight: 600;
 }
 .avatar-section {
   text-align: center;

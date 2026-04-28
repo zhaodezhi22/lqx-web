@@ -26,20 +26,29 @@
 
       <el-card class="seat-card">
         <div class="seat-header">
-          <div>请点击座位锁定（黄色为已锁定，红色为已售）</div>
+          <div>
+            <div>请点击座位锁定（黄色为已锁定，红色为已售）</div>
+            <div class="seat-tip">锁票 30 秒内有效，超时会自动释放</div>
+          </div>
           <el-button 
             type="primary" 
             size="large" 
-            :disabled="selected.length === 0 || isEnded" 
-            :loading="buying" 
+            :disabled="selectedIds.length === 0 || isEnded" 
+            :loading="paymentLoading" 
             @click="buyNow"
           >
-            {{ isEnded ? '已结束' : `立即购买 (${selected.length})` }}
+            {{ isEnded ? '已结束' : `立即支付 (${selectedIds.length})` }}
           </el-button>
+        </div>
+        <div v-if="selectedOrders.length" class="locked-summary">
+          已锁定座位：{{ selectedOrders.map(item => item.seatInfo).join('、') }}
+        </div>
+        <div v-if="selectedOrders.length" class="countdown-box">
+          待支付剩余：{{ eventRemainingLabel }}
         </div>
         <SeatSelection 
           :layout="layout" 
-          :selected-ids="selected" 
+          :selected-ids="selectedIds" 
           @click-seat="onSeatClick" 
         />
       </el-card>
@@ -49,13 +58,47 @@
         <el-button type="primary" @click="$router.push('/events')">返回列表</el-button>
       </el-empty>
     </div>
+
+    <el-dialog v-model="paymentVisible" title="支付订单" width="500px">
+      <div v-if="selectedOrders.length">
+        <p>演出名称：{{ event?.title }}</p>
+        <p>座位：{{ selectedOrders.map(item => item.seatInfo).join('、') }}</p>
+        <p>订单数量：{{ selectedOrders.length }}</p>
+        <p>剩余支付时间：{{ eventRemainingLabel }}</p>
+        <p>原价合计：¥ {{ totalAmount }}</p>
+        <div class="points-box">
+          <div v-if="userPoints >= 1000">
+            <el-checkbox v-model="usePoints">
+              使用积分抵扣（可用 {{ userPoints }}，最多抵扣 ¥{{ deductionPreview }}）
+            </el-checkbox>
+          </div>
+          <div v-else class="points-muted">
+            当前积分 {{ userPoints }}，满 1000 积分可抵扣
+          </div>
+        </div>
+        <div class="pay-summary">
+          <div>积分抵扣：-¥ {{ usePoints ? deductionAmount : '0.00' }}</div>
+          <div class="pay-amount">应付金额：¥ {{ finalPayAmount }}</div>
+        </div>
+        <el-alert
+          title="此处为模拟支付流程，点击确认支付后将直接完成订单支付。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+      </div>
+      <template #footer>
+        <el-button @click="paymentVisible = false">取消</el-button>
+        <el-button type="primary" :loading="paymentLoading" @click="payOrders">确认支付</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import SeatSelection from '../components/SeatSelection.vue'
 import request from '../utils/request'
 
@@ -63,9 +106,46 @@ const route = useRoute()
 const router = useRouter()
 const event = ref(null)
 const layout = ref(null)
-const selected = ref([]) 
-const buying = ref(false)
+const selectedOrders = ref([])
 const loading = ref(false)
+const paymentVisible = ref(false)
+const paymentLoading = ref(false)
+const userPoints = ref(0)
+const usePoints = ref(false)
+const autoOpenedPayDialog = ref(false)
+const nowTs = ref(Date.now())
+let refreshTimer = null
+let countdownTimer = null
+let refreshing = false
+
+const selectedIds = computed(() => selectedOrders.value.map(item => item.seatInfo))
+
+const totalAmountValue = computed(() => selectedOrders.value.reduce((sum, item) => {
+  return sum + Number(item.price || 0)
+}, 0))
+
+const totalAmount = computed(() => totalAmountValue.value.toFixed(2))
+
+const maxDeductiblePoints = computed(() => {
+  if (userPoints.value < 1000) return 0
+  const maxByPrice = Math.floor(totalAmountValue.value * 1000)
+  return Math.min(userPoints.value, maxByPrice)
+})
+
+const deductionAmount = computed(() => (maxDeductiblePoints.value / 1000).toFixed(2))
+const deductionPreview = computed(() => (maxDeductiblePoints.value / 1000).toFixed(2))
+const finalPayAmount = computed(() => {
+  const amount = totalAmountValue.value - (usePoints.value ? Number(deductionAmount.value) : 0)
+  return amount.toFixed(2)
+})
+
+const remainingSeconds = computed(() => {
+  if (!selectedOrders.value.length) return 0
+  const minExpireTs = Math.min(...selectedOrders.value.map(item => getExpireTimestamp(item)))
+  return Math.max(0, Math.ceil((minExpireTs - nowTs.value) / 1000))
+})
+
+const eventRemainingLabel = computed(() => formatCountdown(remainingSeconds.value))
 
 const isEnded = computed(() => {
   if (!event.value || !event.value.showTime) return false
@@ -79,8 +159,21 @@ const goProfile = (userId, role) => {
   router.push({ name: 'UserPublicProfile', params: { id: userId } })
 }
 
+const getCreatedTimestamp = (order) => {
+  if (!order?.createdTime) return 0
+  const normalized = String(order.createdTime).replace(' ', 'T')
+  const timestamp = new Date(normalized).getTime()
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+const getExpireTimestamp = (order) => getCreatedTimestamp(order) + 30 * 1000
+
+const formatCountdown = (seconds) => {
+  if (seconds <= 0) return '已超时'
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 const fetchDetail = async () => {
-  loading.value = true
   try {
     const res = await request.get(`/events/${route.params.id}`)
     if (res.code === 200 && res.data) {
@@ -92,20 +185,84 @@ const fetchDetail = async () => {
   } catch (e) {
     console.error(e)
     ElMessage.error('加载演出失败')
-  } finally {
-    loading.value = false
   }
 }
 
-const onSeatClick = async (seatId) => {
-  if (isEnded.value) {
-      ElMessage.warning('演出已结束，无法选座')
-      return
+const fetchUserPoints = async () => {
+  const userStr = localStorage.getItem('user')
+  if (!userStr) {
+    userPoints.value = 0
+    return
   }
-  if (selected.value.includes(seatId)) {
-    // Optional: Unlock? Backend doesn't support unlock yet.
-    // Just show message
-    ElMessage.info('座位已锁定，请尽快支付')
+  try {
+    const currentUser = JSON.parse(userStr)
+    if (!currentUser?.userId) {
+      userPoints.value = 0
+      return
+    }
+    const res = await request.get('/points/info', { params: { userId: currentUser.userId } })
+    if (res.code === 200 && res.data) {
+      userPoints.value = res.data.currentPoints || 0
+    }
+  } catch (e) {
+    userPoints.value = 0
+  }
+}
+
+const fetchPendingOrders = async () => {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    selectedOrders.value = []
+    return
+  }
+  try {
+    const res = await request.get('/ticket/my-tickets')
+    if (res.code === 200) {
+      const eventId = Number(route.params.id)
+      selectedOrders.value = (res.data || []).filter(item => item.status === 0 && item.eventId === eventId)
+      const payOrderId = Number(route.query.payOrderId)
+      if (!autoOpenedPayDialog.value && payOrderId) {
+        const targetOrder = selectedOrders.value.find(item => item.orderId === payOrderId)
+        if (targetOrder) {
+          await buyNow()
+          autoOpenedPayDialog.value = true
+        }
+      }
+    }
+  } catch (e) {
+    selectedOrders.value = []
+  }
+}
+
+const refreshOrderState = async ({ showLoading = false } = {}) => {
+  if (refreshing) return
+  refreshing = true
+  if (showLoading) loading.value = true
+  try {
+    await Promise.all([fetchDetail(), fetchPendingOrders()])
+  } finally {
+    if (showLoading) loading.value = false
+    refreshing = false
+  }
+}
+
+const onSeatClick = async (seat) => {
+  if (isEnded.value) {
+    ElMessage.warning('演出已结束，无法选座')
+    return
+  }
+  const seatId = typeof seat === 'string' ? seat : seat?.id
+  if (!seatId) return
+  if (seat?.status === 1) {
+    ElMessage.warning('该座位已售出，请选择其他座位')
+    return
+  }
+  if (seat?.status === 2) {
+    ElMessage.warning('该座位已被锁定，请选择其他座位')
+    return
+  }
+  if (selectedIds.value.includes(seatId)) {
+    ElMessage.warning('该座位已被锁定，请尽快支付')
     return
   }
   
@@ -115,9 +272,9 @@ const onSeatClick = async (seatId) => {
       seatId: seatId
     })
     
-    if (res.code === 200) {
-      selected.value.push(seatId)
-      ElMessage.success('座位锁定成功 (15分钟有效)')
+    if (res.code === 200 && res.data) {
+      selectedOrders.value.push(res.data)
+      ElMessage.success('座位锁定成功（30 秒内有效）')
     } else {
       ElMessage.error(res.message || '锁定失败')
     }
@@ -127,50 +284,70 @@ const onSeatClick = async (seatId) => {
 }
 
 const buyNow = async () => {
-  if (selected.value.length === 0) return
-  
-  buying.value = true
+  if (selectedOrders.value.length === 0) {
+    ElMessage.warning('请先锁定座位')
+    return
+  }
+  usePoints.value = false
+  await fetchUserPoints()
+  paymentVisible.value = true
+}
+
+const payOrders = async () => {
+  if (!selectedOrders.value.length) {
+    ElMessage.warning('没有可支付的订单')
+    paymentVisible.value = false
+    return
+  }
+
+  paymentLoading.value = true
   try {
-    // Process all locked seats
-    const successIds = []
-    const failIds = []
-    
-    for (const seatId of selected.value) {
-      try {
-        const res = await request.post('/ticket/order', {
-          eventId: event.value.eventId,
-          seatInfo: seatId,
-          price: event.value.ticketPrice
-        })
-        if (res.code === 200) {
-          successIds.push(seatId)
-        } else {
-          failIds.push(seatId)
-        }
-      } catch (e) {
-        failIds.push(seatId)
-      }
-    }
-    
-    if (failIds.length > 0) {
-      ElMessage.warning(`购买部分成功。成功: ${successIds.length}, 失败: ${failIds.length}`)
+    const res = await request.post('/ticket/pay', {
+      orderIds: selectedOrders.value.map(item => item.orderId),
+      usedPoints: usePoints.value ? maxDeductiblePoints.value : 0
+    })
+    if (res.code === 200) {
+      ElMessage.success('支付成功，门票已加入我的票务')
+      paymentVisible.value = false
+      await fetchUserPoints()
+      await refreshOrderState()
+      router.replace({ path: route.path })
     } else {
-      ElMessage.success('购票成功！')
-      router.push('/profile') // Redirect to profile page (which has tickets tab)
+      ElMessage.error(res.message || '支付失败')
+      await refreshOrderState()
     }
-    
-    // Refresh to update layout (sold status)
-    fetchDetail()
-    selected.value = [] // Clear selection
-    
   } catch (e) {
-    ElMessage.error('购票流程异常')
+    ElMessage.error(e.response?.data?.message || '支付失败')
+    await refreshOrderState()
   } finally {
-    buying.value = false
+    paymentLoading.value = false
   }
 }
 
-onMounted(fetchDetail)
+onMounted(async () => {
+  await refreshOrderState({ showLoading: true })
+  refreshTimer = window.setInterval(() => {
+    refreshOrderState()
+  }, 5000)
+  countdownTimer = window.setInterval(async () => {
+    nowTs.value = Date.now()
+    if (selectedOrders.value.length && remainingSeconds.value <= 0) {
+      paymentVisible.value = false
+      await refreshOrderState()
+    }
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+  if (countdownTimer) {
+    window.clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+})
 </script>
 
 <style scoped>
@@ -232,6 +409,7 @@ onMounted(fetchDetail)
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  gap: 16px;
 }
 .desc-card {
   margin-top: 24px;
@@ -242,5 +420,38 @@ onMounted(fetchDetail)
   margin-bottom: 16px;
   border-left: 4px solid #409EFF;
   padding-left: 12px;
+}
+.seat-tip {
+  margin-top: 6px;
+  color: #909399;
+  font-size: 13px;
+}
+.locked-summary {
+  margin-bottom: 16px;
+  color: #606266;
+}
+.countdown-box {
+  margin-bottom: 16px;
+  color: #e6a23c;
+  font-weight: 600;
+}
+.points-box {
+  margin: 16px 0;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+.points-muted {
+  color: #909399;
+  font-size: 13px;
+}
+.pay-summary {
+  margin-bottom: 16px;
+  line-height: 1.9;
+}
+.pay-amount {
+  color: #f56c6c;
+  font-size: 18px;
+  font-weight: 600;
 }
 </style>

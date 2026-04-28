@@ -66,9 +66,11 @@ import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import request from '../utils/request'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { startTokenExpiryMonitor } from '../utils/auth'
 
 const router = useRouter()
+const route = useRoute()
 const form = reactive({
   username: '',
   password: '',
@@ -86,11 +88,17 @@ const onSubmit = async () => {
     const res = await request.post('/auth/login', form)
     localStorage.setItem('token', res.data.token)
     localStorage.setItem('user', JSON.stringify(res.data.user))
+    startTokenExpiryMonitor()
     
     ElMessage.success('登录成功')
-    
-    const role = res.data.user.role
-    if (role >= 2) {
+
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+    if (redirect) {
+      router.push(redirect)
+      return
+    }
+
+    if (res.data.user.role >= 2) {
       router.push('/admin')
     } else {
       router.push('/')

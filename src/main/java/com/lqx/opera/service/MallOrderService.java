@@ -23,6 +23,16 @@ public interface MallOrderService extends IService<MallOrder> {
     boolean auditRefund(Long orderId, boolean pass);
 
     /**
+     * 卖家审核退款
+     */
+    boolean auditRefundBySeller(Long orderId, boolean pass, Long sellerId);
+
+    /**
+     * 自动通过超时未审核的退款申请
+     */
+    int autoApproveExpiredRefunds();
+
+    /**
      * 确认收货
      */
     void confirmReceipt(Long orderId, Long userId);

@@ -4,10 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lqx.opera.entity.ApprenticeTask;
 import com.lqx.opera.entity.CommunityComment;
+import com.lqx.opera.entity.CommunityPost;
 import com.lqx.opera.entity.SysUser;
 import com.lqx.opera.entity.TaskAssignment;
 import com.lqx.opera.mapper.ApprenticeTaskMapper;
 import com.lqx.opera.mapper.CommunityCommentMapper;
+import com.lqx.opera.mapper.CommunityPostMapper;
 import com.lqx.opera.mapper.TaskAssignmentMapper;
 import com.lqx.opera.service.SysUserService;
 import com.lqx.opera.service.TeachingService;
@@ -28,13 +30,16 @@ public class TeachingServiceImpl extends ServiceImpl<ApprenticeTaskMapper, Appre
     private final TaskAssignmentMapper taskAssignmentMapper;
     private final SysUserService sysUserService;
     private final CommunityCommentMapper communityCommentMapper;
+    private final CommunityPostMapper communityPostMapper;
 
     public TeachingServiceImpl(TaskAssignmentMapper taskAssignmentMapper, 
                                SysUserService sysUserService,
-                               CommunityCommentMapper communityCommentMapper) {
+                               CommunityCommentMapper communityCommentMapper,
+                               CommunityPostMapper communityPostMapper) {
         this.taskAssignmentMapper = taskAssignmentMapper;
         this.sysUserService = sysUserService;
         this.communityCommentMapper = communityCommentMapper;
+        this.communityPostMapper = communityPostMapper;
     }
 
     @Override
@@ -141,6 +146,8 @@ public class TeachingServiceImpl extends ServiceImpl<ApprenticeTaskMapper, Appre
         assignment.setScore(score);
         assignment.setReviewContent(commentContent);
         taskAssignmentMapper.updateById(assignment);
+
+        syncReviewedAssignmentToCommunity(task, assignment, masterId, commentContent);
     }
 
     @Override
@@ -260,5 +267,80 @@ public class TeachingServiceImpl extends ServiceImpl<ApprenticeTaskMapper, Appre
         task.setDescription(description);
         task.setDemoVideoUrl(videoUrl);
         this.updateById(task);
+    }
+
+    private void syncReviewedAssignmentToCommunity(ApprenticeTask task,
+                                                   TaskAssignment assignment,
+                                                   Long masterId,
+                                                   String commentContent) {
+        CommunityPost post = communityPostMapper.selectOne(new LambdaQueryWrapper<CommunityPost>()
+                .eq(CommunityPost::getSourceAssignmentId, assignment.getId())
+                .last("LIMIT 1"));
+
+        if (post == null) {
+            post = new CommunityPost();
+            post.setUserId(assignment.getStudentId());
+            post.setViewCount(0);
+            post.setLikeCount(0);
+            post.setStatus(1);
+            post.setImages("[]");
+            post.setSourceAssignmentId(assignment.getId());
+            post.setCreatedTime(LocalDateTime.now());
+            post.setTitle(task.getTitle());
+            post.setContent(buildCommunityPostContent(task, assignment, commentContent));
+            communityPostMapper.insert(post);
+        } else {
+            post.setUserId(assignment.getStudentId());
+            post.setTitle(task.getTitle());
+            post.setContent(buildCommunityPostContent(task, assignment, commentContent));
+            communityPostMapper.updateById(post);
+        }
+
+        CommunityComment officialComment = communityCommentMapper.selectOne(new LambdaQueryWrapper<CommunityComment>()
+                .eq(CommunityComment::getTargetId, post.getPostId())
+                .eq(CommunityComment::getTargetType, 3)
+                .eq(CommunityComment::getUserId, masterId)
+                .eq(CommunityComment::getIsOfficial, 1)
+                .last("LIMIT 1"));
+
+        if (officialComment == null) {
+            officialComment = new CommunityComment();
+            officialComment.setUserId(masterId);
+            officialComment.setTargetId(post.getPostId());
+            officialComment.setTargetType(3);
+            officialComment.setIsOfficial(1);
+            officialComment.setStatus(0);
+            officialComment.setCreatedTime(LocalDateTime.now());
+            officialComment.setContent(commentContent);
+            communityCommentMapper.insert(officialComment);
+        } else {
+            officialComment.setContent(commentContent);
+            officialComment.setCreatedTime(LocalDateTime.now());
+            communityCommentMapper.updateById(officialComment);
+        }
+    }
+
+    private String buildCommunityPostContent(ApprenticeTask task, TaskAssignment assignment, String commentContent) {
+        SysUser student = sysUserService.getById(assignment.getStudentId());
+        String studentName = "学员";
+        if (student != null) {
+            studentName = student.getRealName() != null && !student.getRealName().trim().isEmpty()
+                    ? student.getRealName()
+                    : student.getUsername();
+        }
+
+        StringBuilder content = new StringBuilder();
+        content.append(studentName).append(" 提交了《").append(task.getTitle()).append("》的作业，并已收到师父点评。");
+
+        if (assignment.getSubmissionContent() != null && !assignment.getSubmissionContent().trim().isEmpty()) {
+            content.append("\n\n作品内容：\n").append(assignment.getSubmissionContent().trim());
+        }
+
+        if (assignment.getSubmissionVideoUrl() != null && !assignment.getSubmissionVideoUrl().trim().isEmpty()) {
+            content.append("\n\n作品视频：\n").append(assignment.getSubmissionVideoUrl().trim());
+        }
+
+        content.append("\n\n恩师评语摘要：\n").append(commentContent.trim());
+        return content.toString();
     }
 }

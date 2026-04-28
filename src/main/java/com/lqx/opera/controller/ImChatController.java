@@ -25,7 +25,15 @@ public class ImChatController {
     @PostMapping("/recall")
     public Result<Boolean> recallMessage(@RequestAttribute Long userId, @RequestBody Map<String, Object> body) {
         try {
-            Long messageId = Long.valueOf(body.get("messageId").toString());
+            Object messageIdValue = body.get("messageId");
+            if (messageIdValue == null) {
+                return Result.fail("参数错误");
+            }
+            String messageIdText = messageIdValue.toString().trim();
+            if (!messageIdText.matches("\\d+")) {
+                return Result.fail("参数错误");
+            }
+            Long messageId = Long.valueOf(messageIdText);
             imChatMessageService.recallMessage(userId, messageId);
             return Result.success(true);
         } catch (NumberFormatException e) {

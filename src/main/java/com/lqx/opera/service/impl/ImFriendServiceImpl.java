@@ -3,8 +3,10 @@ package com.lqx.opera.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lqx.opera.common.dto.ImFriendDto;
+import com.lqx.opera.entity.ImChatMessage;
 import com.lqx.opera.entity.ImFriend;
 import com.lqx.opera.entity.SysUser;
+import com.lqx.opera.mapper.ImChatMessageMapper;
 import com.lqx.opera.mapper.ImFriendMapper;
 import com.lqx.opera.service.ImFriendService;
 import com.lqx.opera.service.SysUserService;
@@ -22,6 +24,9 @@ public class ImFriendServiceImpl extends ServiceImpl<ImFriendMapper, ImFriend> i
 
     @Autowired
     private SysUserService sysUserService;
+
+    @Autowired
+    private ImChatMessageMapper imChatMessageMapper;
 
     @Override
     public List<ImFriendDto> listFriends(Long userId) {
@@ -53,6 +58,20 @@ public class ImFriendServiceImpl extends ServiceImpl<ImFriendMapper, ImFriend> i
                 dto.setUsername(friendUser.getUsername());
                 dto.setRealName(friendUser.getRealName());
                 dto.setAvatar(friendUser.getAvatar());
+            }
+            ImChatMessage lastMessage = imChatMessageMapper.selectOne(new LambdaQueryWrapper<ImChatMessage>()
+                    .and(w -> w
+                            .eq(ImChatMessage::getFromId, userId).eq(ImChatMessage::getToId, relation.getFriendId())
+                            .or()
+                            .eq(ImChatMessage::getFromId, relation.getFriendId()).eq(ImChatMessage::getToId, userId)
+                    )
+                    .orderByDesc(ImChatMessage::getCreateTime)
+                    .last("LIMIT 1"));
+            if (lastMessage != null) {
+                dto.setLastMessage(lastMessage.getContent());
+                dto.setLastMessageType(lastMessage.getType());
+                dto.setLastMessageIsRecalled(lastMessage.getIsRecalled());
+                dto.setLastMessageTime(lastMessage.getCreateTime());
             }
             return dto;
         }).collect(Collectors.toList());

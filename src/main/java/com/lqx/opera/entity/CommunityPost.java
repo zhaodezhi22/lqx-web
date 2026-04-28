@@ -19,5 +19,6 @@ public class CommunityPost {
     private Integer viewCount;
     private Integer likeCount;
     private Integer status; // 0-Pending, 1-Approved, 2-Rejected
+    private Long sourceAssignmentId;
     private LocalDateTime createdTime;
 }

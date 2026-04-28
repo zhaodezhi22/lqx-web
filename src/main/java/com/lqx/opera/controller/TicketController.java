@@ -4,6 +4,7 @@ import com.lqx.opera.common.Result;
 import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.common.dto.CreateTicketDTO;
 import com.lqx.opera.common.dto.LockSeatRequest;
+import com.lqx.opera.common.dto.TicketPayRequest;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lqx.opera.common.dto.TicketOrderDetailDto;
@@ -32,7 +33,7 @@ public class TicketController {
     }
 
     @PostMapping("/lock")
-    public Result<Boolean> lockSeat(@RequestBody LockSeatRequest req, HttpServletRequest request) {
+    public Result<TicketOrder> lockSeat(@RequestBody LockSeatRequest req, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) {
             return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
@@ -46,11 +47,11 @@ public class TicketController {
             return Result.fail(400, "演出已结束，无法选座");
         }
 
-        boolean success = ticketService.lockSeat(req.getEventId(), req.getSeatId(), userId);
-        if (success) {
-            return Result.success(true);
-        } else {
-            return Result.fail(400, "锁定失败，座位可能已被他人锁定或已售出");
+        try {
+            TicketOrder order = ticketService.lockSeat(req.getEventId(), req.getSeatId(), userId);
+            return Result.success(order);
+        } catch (RuntimeException e) {
+            return Result.fail(400, e.getMessage());
         }
     }
 
@@ -90,6 +91,33 @@ public class TicketController {
         } catch (Exception e) {
             e.printStackTrace();
             return Result.fail(500, "购票失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/pay")
+    public Result<List<TicketOrder>> payOrders(@RequestBody TicketPayRequest req, HttpServletRequest request) {
+        Object userIdObj = request.getAttribute("userId");
+        if (userIdObj == null) {
+            return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
+        }
+
+        Long userId;
+        if (userIdObj instanceof Number) {
+            userId = ((Number) userIdObj).longValue();
+        } else {
+            try {
+                userId = Long.parseLong(userIdObj.toString());
+            } catch (NumberFormatException e) {
+                return Result.fail(400, "非法用户ID");
+            }
+        }
+
+        try {
+            return Result.success(ticketService.payTicketOrders(req.getOrderIds(), req.getUsedPoints(), userId));
+        } catch (RuntimeException e) {
+            return Result.fail(400, e.getMessage());
+        } catch (Exception e) {
+            return Result.fail(500, "支付失败: " + e.getMessage());
         }
     }
 

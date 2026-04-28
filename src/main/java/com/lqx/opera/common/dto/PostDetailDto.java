@@ -14,6 +14,8 @@ public class PostDetailDto {
     private Integer viewCount;
     private Integer likeCount;
     private Integer status; // 0-Pending, 1-Approved, 2-Rejected
+    private Long sourceAssignmentId;
+    private String officialReviewSummary;
     private String createdTime; // Format: yyyy-MM-dd HH:mm
     private Boolean isLiked;
     
@@ -27,6 +29,7 @@ public class PostDetailDto {
         private String userName;
         private String userAvatar;
         private String content;
+        private Integer isOfficial;
         private String createdTime;
         private List<CommentDto> replies; // 子评论/回复
     }

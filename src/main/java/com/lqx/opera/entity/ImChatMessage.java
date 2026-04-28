@@ -1,6 +1,7 @@
 package com.lqx.opera.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -31,4 +32,10 @@ public class ImChatMessage implements Serializable {
     private Integer isRecalled; // 0否, 1是
 
     private LocalDateTime createTime;
+
+    @TableField(exist = false)
+    private String event;
+
+    @TableField(exist = false)
+    private String clientMsgId;
 }

@@ -42,13 +42,12 @@
             </template>
         </el-table-column>
         <el-table-column prop="createTime" label="下单时间" width="180" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button v-if="row.status === 1" type="primary" size="small" @click="openShip(row)">去发货</el-button>
             <el-button v-if="row.status === 2" type="warning" size="small" @click="openShip(row)">修改物流</el-button>
             <el-button v-if="row.status === 4" type="success" size="small" @click="confirmRefund(row)">同意退款</el-button>
-            <!-- 预留驳回功能 -->
-            <!-- <el-button v-if="row.status === 4" type="danger" size="small" @click="auditRefund(row, false)">驳回</el-button> -->
+            <el-button v-if="row.status === 4" type="danger" size="small" @click="auditRefund(row, false)">驳回退款</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -162,6 +161,28 @@ const confirmRefund = (row) => {
     try {
       await request.post(`/mall/refund/confirm/${row.id}`)
       ElMessage.success('退款处理成功，订单已取消')
+      fetchList()
+    } catch (e) {
+      ElMessage.error(e?.response?.data?.message || '操作失败')
+    }
+  })
+}
+
+const auditRefund = (row, pass) => {
+  ElMessageBox.confirm(
+    pass ? '确定同意退款吗？此操作将回滚库存。' : '确定驳回该退款申请吗？',
+    pass ? '同意退款' : '驳回退款',
+    {
+      confirmButtonText: pass ? '同意' : '驳回',
+      cancelButtonText: '取消',
+      type: pass ? 'warning' : 'info',
+    }
+  ).then(async () => {
+    try {
+      await request.post(`/mall/refund/audit/${row.id}`, null, {
+        params: { pass }
+      })
+      ElMessage.success(pass ? '退款已通过' : '退款已驳回')
       fetchList()
     } catch (e) {
       ElMessage.error(e?.response?.data?.message || '操作失败')

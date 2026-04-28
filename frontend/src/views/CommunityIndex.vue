@@ -55,6 +55,7 @@
             <div class="user-info">
               <el-avatar :src="post.userAvatar" :size="40" />
               <span class="nickname">{{ post.userName }}</span>
+              <el-tag v-if="post.sourceAssignmentId" size="small" type="warning" effect="dark" style="margin-left: 10px">作业点评同步</el-tag>
               <el-tag v-if="post.status === 0" size="small" type="warning" style="margin-left: 10px">审核中</el-tag>
               <el-tag v-if="post.status === 2" size="small" type="danger" style="margin-left: 10px">未通过</el-tag>
             </div>
@@ -64,6 +65,12 @@
         
         <div class="post-content">
           <p class="text">{{ post.content }}</p>
+          <div v-if="post.officialReviewSummary" class="official-review-preview">
+            <div class="preview-header">
+              <el-tag type="warning" effect="dark" size="small">官方点评</el-tag>
+            </div>
+            <div class="preview-content">{{ post.officialReviewSummary }}</div>
+          </div>
           
           <!-- Image Wall -->
           <div v-if="post.images && post.images.length > 0" 
@@ -287,6 +294,21 @@ onMounted(() => {
   line-height: 1.6;
   color: #333;
   margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+.official-review-preview {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff7e6;
+  border-left: 4px solid #e6a23c;
+}
+.preview-header {
+  margin-bottom: 8px;
+}
+.preview-content {
+  color: #7a4b00;
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 .image-wall {

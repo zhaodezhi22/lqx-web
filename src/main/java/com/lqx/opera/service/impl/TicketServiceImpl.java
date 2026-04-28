@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,11 +29,14 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
 
     private final PerformanceEventService performanceEventService;
     private final PointsService pointsService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public TicketServiceImpl(PerformanceEventService performanceEventService, PointsService pointsService) {
+    public TicketServiceImpl(PerformanceEventService performanceEventService,
+                             PointsService pointsService,
+                             ObjectMapper objectMapper) {
         this.performanceEventService = performanceEventService;
         this.pointsService = pointsService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -159,19 +163,56 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
     }
 
     @Override
-    public boolean lockSeat(Long eventId, String seatId, Long userId) {
-        // Simple mock implementation as the focus is on createOrder fix
-        return true;
+    @Transactional(rollbackFor = Exception.class)
+    public TicketOrder lockSeat(Long eventId, String seatId, Long userId) {
+        releaseExpiredPendingOrders();
+
+        PerformanceEvent event = performanceEventService.getById(eventId);
+        if (event == null) {
+            throw new RuntimeException("演出不存在");
+        }
+
+        TicketOrder existingOrder = this.lambdaQuery()
+                .eq(TicketOrder::getEventId, eventId)
+                .eq(TicketOrder::getSeatInfo, seatId)
+                .eq(TicketOrder::getUserId, userId)
+                .eq(TicketOrder::getStatus, 0)
+                .orderByDesc(TicketOrder::getCreatedTime)
+                .last("limit 1")
+                .one();
+        if (existingOrder != null && !isOrderExpired(existingOrder)) {
+            return existingOrder;
+        }
+
+        TicketOrder lockedByOthers = this.lambdaQuery()
+                .eq(TicketOrder::getEventId, eventId)
+                .eq(TicketOrder::getSeatInfo, seatId)
+                .eq(TicketOrder::getStatus, 0)
+                .orderByDesc(TicketOrder::getCreatedTime)
+                .last("limit 1")
+                .one();
+        if (lockedByOthers != null && !isOrderExpired(lockedByOthers)) {
+            throw new RuntimeException("该座位已被他人锁定，请稍后重试");
+        }
+
+        changeSeatStatus(event, seatId, 2);
+
+        TicketOrder order = new TicketOrder();
+        order.setOrderNo(generateOrderNo());
+        order.setUserId(userId);
+        order.setEventId(eventId);
+        order.setSeatInfo(seatId);
+        order.setPrice(event.getTicketPrice());
+        order.setStatus(0);
+        order.setCreatedTime(LocalDateTime.now());
+        this.save(order);
+        return order;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TicketOrder createTicketOrder(CreateTicketDTO dto, Long userId) {
-        System.out.println("DEBUG: Entering createTicketOrder. userId=" + userId + ", dto=" + dto);
-        
-        // 1. Basic validation
         if (dto.getEventId() == null || dto.getSeatInfo() == null || dto.getPrice() == null) {
-            System.err.println("DEBUG: Missing params. eventId=" + dto.getEventId() + ", seatInfo=" + dto.getSeatInfo() + ", price=" + dto.getPrice());
             throw new RuntimeException("订单参数缺失");
         }
 
@@ -179,33 +220,75 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         if (event == null) {
             throw new RuntimeException("演出不存在");
         }
-        
-        // 2. Update Seat Status in Event
-        changeSeatStatus(event, dto.getSeatInfo(), 1);
 
-        // 3. Create Order
-        TicketOrder order = new TicketOrder();
-        // Generate Order No
-        String orderNo = "TKT" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-        order.setOrderNo(orderNo);
-        
-        // Generate 8-digit random numeric Voucher Code
-        String voucherCode = String.valueOf((int)((Math.random() * 9 + 1) * 10000000));
-        order.setQrCode(voucherCode);
-        
-        order.setUserId(userId);
-        order.setEventId(dto.getEventId());
-        order.setSeatInfo(dto.getSeatInfo());
+        TicketOrder order = lockSeat(dto.getEventId(), dto.getSeatInfo(), userId);
         order.setPrice(dto.getPrice());
-        
-        // Status: 1-Paid (Simulated)
-        order.setStatus(1);
-        order.setCreatedTime(LocalDateTime.now());
-        
-        boolean saved = this.save(order);
-        System.out.println("DEBUG: Order saved? " + saved + ". ID=" + order.getOrderId());
-        
+        this.updateById(order);
         return order;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<TicketOrder> payTicketOrders(List<Long> orderIds, Integer usedPoints, Long userId) {
+        releaseExpiredPendingOrders();
+
+        if (orderIds == null || orderIds.isEmpty()) {
+            throw new RuntimeException("请选择待支付订单");
+        }
+
+        List<TicketOrder> orders = this.listByIds(orderIds).stream()
+                .sorted(Comparator.comparing(TicketOrder::getOrderId))
+                .collect(Collectors.toList());
+        if (orders.size() != orderIds.size()) {
+            throw new RuntimeException("存在无效订单");
+        }
+
+        for (TicketOrder order : orders) {
+            if (!userId.equals(order.getUserId())) {
+                throw new RuntimeException("订单不属于当前用户");
+            }
+            if (order.getStatus() != 0) {
+                throw new RuntimeException("订单状态已变更，请刷新后重试");
+            }
+            if (isOrderExpired(order)) {
+                throw new RuntimeException("存在超时订单，请重新锁票");
+            }
+        }
+
+        int pointsToUse = usedPoints == null ? 0 : usedPoints;
+        if (pointsToUse > 0 && pointsToUse < 1000) {
+            throw new RuntimeException("积分抵扣最低1000起");
+        }
+
+        java.math.BigDecimal totalAmount = orders.stream()
+                .map(TicketOrder::getPrice)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        int maxPointsByPrice = totalAmount.multiply(java.math.BigDecimal.valueOf(1000)).intValue();
+        if (pointsToUse > maxPointsByPrice) {
+            throw new RuntimeException("积分抵扣金额不能超过订单总额");
+        }
+        if (pointsToUse > 0 && !pointsService.deductPoints(userId, pointsToUse, "演出票抵扣")) {
+            throw new RuntimeException("积分余额不足");
+        }
+
+        LocalDateTime payTime = LocalDateTime.now();
+        for (TicketOrder order : orders) {
+            PerformanceEvent event = performanceEventService.getById(order.getEventId());
+            if (event == null) {
+                throw new RuntimeException("演出不存在");
+            }
+            if (event.getShowTime() != null && event.getShowTime().isBefore(payTime)) {
+                throw new RuntimeException("演出已结束，无法支付");
+            }
+
+            changeSeatStatus(event, order.getSeatInfo(), 1);
+            order.setStatus(1);
+            order.setPayTime(payTime);
+            order.setQrCode(generateVoucherCode());
+            this.updateById(order);
+        }
+
+        return orders;
     }
 
     @Override
@@ -241,34 +324,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelUnpaidOrders() {
-        // Find unpaid orders created more than 30 minutes ago
-        List<TicketOrder> expiredOrders = this.lambdaQuery()
-                .eq(TicketOrder::getStatus, 0) // 0-Pending
-                .lt(TicketOrder::getCreatedTime, LocalDateTime.now().minusMinutes(30))
-                .list();
-
-        if (expiredOrders == null || expiredOrders.isEmpty()) {
-            return;
-        }
-
-        System.out.println("Found " + expiredOrders.size() + " expired orders. Processing cancellations...");
-
-        for (TicketOrder order : expiredOrders) {
-            try {
-                // 1. Release seat
-                PerformanceEvent event = performanceEventService.getById(order.getEventId());
-                if (event != null) {
-                    changeSeatStatus(event, order.getSeatInfo(), 0); // 0-Available
-                }
-
-                // 2. Delete order (as requested: "delete order info")
-                this.removeById(order.getOrderId());
-                
-                System.out.println("Cancelled order: " + order.getOrderNo());
-            } catch (Exception e) {
-                System.err.println("Failed to cancel order " + order.getOrderNo() + ": " + e.getMessage());
-            }
-        }
+        releaseExpiredPendingOrders();
     }
 
     @Override
@@ -355,8 +411,8 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
             boolean found = false;
             for (Map<String, Object> seat : layout) {
                 if (seatId.equals(seat.get("id"))) {
-                    // If trying to sell (target=1), check if already sold
-                    if (targetStatus == 1) {
+                    // If trying to sell or lock, make sure the seat is not already sold.
+                    if (targetStatus == 1 || targetStatus == 2) {
                         Object statusObj = seat.get("status");
                         if (statusObj != null) {
                             int currentStatus = 0;
@@ -365,6 +421,9 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
                             }
                             if (currentStatus == 1) {
                                 throw new RuntimeException("该座位已售出");
+                            }
+                            if (targetStatus == 2 && currentStatus == 2) {
+                                throw new RuntimeException("该座位已锁定");
                             }
                         }
                     }
@@ -390,5 +449,41 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
             System.err.println("Failed to update seat status: " + e.getMessage());
             throw new RuntimeException("更新座位状态失败");
         }
+    }
+
+    private void releaseExpiredPendingOrders() {
+        List<TicketOrder> expiredOrders = this.lambdaQuery()
+                .eq(TicketOrder::getStatus, 0)
+                .lt(TicketOrder::getCreatedTime, LocalDateTime.now().minusSeconds(30))
+                .list();
+
+        if (expiredOrders == null || expiredOrders.isEmpty()) {
+            return;
+        }
+
+        for (TicketOrder order : expiredOrders) {
+            PerformanceEvent event = performanceEventService.getById(order.getEventId());
+            if (event != null) {
+                try {
+                    changeSeatStatus(event, order.getSeatInfo(), 0);
+                } catch (Exception ignored) {
+                    // Ignore single-seat release errors and continue cleaning other expired orders.
+                }
+            }
+            this.removeById(order.getOrderId());
+        }
+    }
+
+    private boolean isOrderExpired(TicketOrder order) {
+        return order.getCreatedTime() != null
+                && order.getCreatedTime().isBefore(LocalDateTime.now().minusSeconds(30));
+    }
+
+    private String generateOrderNo() {
+        return "TKT" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
+
+    private String generateVoucherCode() {
+        return String.valueOf((int) ((Math.random() * 9 + 1) * 10000000));
     }
 }

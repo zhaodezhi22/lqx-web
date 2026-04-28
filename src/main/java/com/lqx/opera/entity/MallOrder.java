@@ -47,4 +47,7 @@ public class MallOrder implements Serializable {
 
     @TableField("create_time")
     private java.time.LocalDateTime createTime;
+
+    @TableField("refund_apply_time")
+    private java.time.LocalDateTime refundApplyTime;
 }

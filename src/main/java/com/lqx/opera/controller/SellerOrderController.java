@@ -145,41 +145,20 @@ public class SellerOrderController {
         return Result.success(true);
     }
 
-    @PostMapping("/refund/{orderId}")
+    @PostMapping("/refund/audit/{orderId}")
     @RequireRole({1})
     @Transactional(rollbackFor = Exception.class)
-    public Result<Boolean> refundOrder(@PathVariable Long orderId, HttpServletRequest request) {
+    public Result<Boolean> auditRefund(@PathVariable Long orderId,
+                                       @RequestParam Boolean pass,
+                                       HttpServletRequest request) {
         Long sellerId = (Long) request.getAttribute("userId");
-        
-        MallOrder order = mallOrderService.getById(orderId);
-        if (order == null) return Result.fail("订单不存在");
-
-        // Allow refund if Paid(1) or RefundRequested(4)
-        if (order.getStatus() != 1 && order.getStatus() != 4) {
-            return Result.fail("订单状态不正确");
+        try {
+            return mallOrderService.auditRefundBySeller(orderId, pass, sellerId)
+                    ? Result.success(true)
+                    : Result.fail("审核失败");
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
         }
-
-        boolean isMyOrder = checkOrderOwnership(orderId, sellerId);
-        if (!isMyOrder) return Result.fail("无权操作此订单");
-
-        // Execute Refund Logic (Simplified: Status 3 + Stock Rollback)
-        order.setStatus(3); // Cancelled/Refunded
-        mallOrderService.updateById(order);
-
-        // Rollback Stock for ALL items (Since we cancel the whole order)
-        // Note: This affects other sellers if mixed. Accepting this limitation per current architecture.
-        List<MallOrderItem> items = mallOrderItemService.list(new LambdaQueryWrapper<MallOrderItem>()
-                .eq(MallOrderItem::getOrderId, orderId));
-        
-        for (MallOrderItem item : items) {
-            Product product = productService.getById(item.getProductId());
-            if (product != null) {
-                product.setStock(product.getStock() + item.getQuantity());
-                productService.updateById(product);
-            }
-        }
-
-        return Result.success(true);
     }
 
     private boolean checkOrderOwnership(Long orderId, Long sellerId) {

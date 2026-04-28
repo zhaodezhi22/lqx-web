@@ -14,11 +14,10 @@ public class OrderTask {
     }
 
     /**
-     * Cancel unpaid orders every minute
+     * Release expired ticket locks promptly so 30s timeout is close to real time.
      */
-    @Scheduled(cron = "0 0/1 * * * ?")
+    @Scheduled(fixedDelay = 5000)
     public void cancelUnpaidOrders() {
-        // System.out.println("Running scheduled task: cancelUnpaidOrders");
         ticketService.cancelUnpaidOrders();
     }
 }

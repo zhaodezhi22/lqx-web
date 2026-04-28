@@ -99,7 +99,7 @@ public class MallOrderController {
     @RequireRole({2, 3})
     public Result<Boolean> confirmRefund(@PathVariable Long id) {
         try {
-            adminOrderService.confirmRefund(id);
+            mallOrderService.auditRefund(id, true);
             return Result.success(true);
         } catch (Exception e) {
             return Result.fail(e.getMessage());

@@ -105,6 +105,10 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityPostMapper, Commu
             }
         }
 
+        Map<Long, String> officialReviewMap = loadOfficialReviewMap(records.stream()
+                .map(CommunityPost::getPostId)
+                .collect(Collectors.toList()));
+
         // 3. Prepare liked status map
         Set<Long> likedPostIds = new HashSet<>();
         if (currentUserId != null) {
@@ -127,9 +131,11 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityPostMapper, Commu
             dto.setUserId(post.getUserId());
             dto.setContent(post.getContent());
             dto.setViewCount(post.getViewCount());
-        dto.setLikeCount(post.getLikeCount());
-        dto.setStatus(post.getStatus());
-        dto.setCreatedTime(post.getCreatedTime() != null ? post.getCreatedTime().format(dateFormatter) : "");
+            dto.setLikeCount(post.getLikeCount());
+            dto.setStatus(post.getStatus());
+            dto.setSourceAssignmentId(post.getSourceAssignmentId());
+            dto.setOfficialReviewSummary(officialReviewMap.get(post.getPostId()));
+            dto.setCreatedTime(post.getCreatedTime() != null ? post.getCreatedTime().format(dateFormatter) : "");
             
             // User Info
             SysUser user = userMap.get(post.getUserId());
@@ -180,6 +186,7 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityPostMapper, Commu
         dto.setViewCount(post.getViewCount());
         dto.setLikeCount(post.getLikeCount());
         dto.setStatus(post.getStatus());
+        dto.setSourceAssignmentId(post.getSourceAssignmentId());
         dto.setCreatedTime(post.getCreatedTime() != null ? post.getCreatedTime().format(dateFormatter) : "");
 
         // Images
@@ -219,6 +226,7 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityPostMapper, Commu
         List<CommunityComment> l1Comments = communityCommentService.list(new LambdaQueryWrapper<CommunityComment>()
                 .eq(CommunityComment::getTargetId, postId)
                 .eq(CommunityComment::getTargetType, 3)
+                .orderByDesc(CommunityComment::getIsOfficial)
                 .orderByDesc(CommunityComment::getCreatedTime));
 
         List<PostDetailDto.CommentDto> commentDtos = new ArrayList<>();
@@ -254,6 +262,7 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityPostMapper, Commu
                 cDto.setCommentId(c.getCommentId());
                 cDto.setUserId(c.getUserId());
                 cDto.setContent(c.getContent());
+                cDto.setIsOfficial(c.getIsOfficial());
                 cDto.setCreatedTime(c.getCreatedTime() != null ? c.getCreatedTime().format(dateFormatter) : "");
                 SysUser u = uMap.get(c.getUserId());
                 if (u != null) {
@@ -280,6 +289,7 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityPostMapper, Commu
             }
         }
         dto.setComments(commentDtos);
+        dto.setOfficialReviewSummary(loadOfficialReviewMap(Collections.singletonList(postId)).get(postId));
 
         return dto;
     }
@@ -317,5 +327,23 @@ public class CommunityServiceImpl extends ServiceImpl<CommunityPostMapper, Commu
             this.updateById(post);
             return true; // Unliked -> Liked
         }
+    }
+
+    private Map<Long, String> loadOfficialReviewMap(List<Long> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<CommunityComment> officialComments = communityCommentService.list(new LambdaQueryWrapper<CommunityComment>()
+                .in(CommunityComment::getTargetId, postIds)
+                .eq(CommunityComment::getTargetType, 3)
+                .eq(CommunityComment::getIsOfficial, 1)
+                .orderByDesc(CommunityComment::getCreatedTime));
+
+        Map<Long, String> reviewMap = new HashMap<>();
+        for (CommunityComment comment : officialComments) {
+            reviewMap.putIfAbsent(comment.getTargetId(), comment.getContent());
+        }
+        return reviewMap;
     }
 }

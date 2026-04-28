@@ -20,7 +20,11 @@ import java.util.stream.Collectors;
 @Service
 public class ImChatMessageServiceImpl extends ServiceImpl<ImChatMessageMapper, ImChatMessage> implements ImChatMessageService {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    public ImChatMessageServiceImpl(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     @Async
@@ -47,28 +51,7 @@ public class ImChatMessageServiceImpl extends ServiceImpl<ImChatMessageMapper, I
     @Transactional(rollbackFor = Exception.class)
     public void recallMessage(Long userId, Long messageId) {
         ImChatMessage message = this.getById(messageId);
-        
-        // 兼容处理：如果按 ID 查不到，可能是因为前端传的是 timestamp ID (乐观更新时生成的)
-        // 尝试通过 createTime 和 fromId 查找最近的一条消息
         if (message == null) {
-            // 假设前端传的 messageId 是时间戳，且误差在 1 秒内
-            // 或者直接告诉前端需要刷新列表获取真实 ID
-            // 这里我们尝试用更宽的条件查找：最近 2 分钟内，该用户发送的，且内容匹配的消息？
-            // 还是严格一点：必须要有真实 ID。
-            // 前端在发送成功后，应该更新本地消息的 ID 为数据库真实 ID。
-            // 但目前前端实现是：socket.send -> addMessageToHistory (localMsg with Date.now() id)
-            // 后端异步保存，并没有通过 socket 返回真实 ID 给前端。
-            // 所以前端持有的 ID 是假的，发回给后端当然查不到。
-            
-            // 解决方案：
-            // 1. 后端保存消息后，通过 Socket 推送一条 "ACK" 消息，包含 clientMsgId 和 serverMsgId
-            // 2. 前端收到 ACK 后，更新本地消息 ID
-            // 3. 或者：前端撤回时，如果 ID 是时间戳（很大），则提示“正在发送中或刷新后重试”
-            // 
-            // 鉴于不改动太大的原则，我们可以在后端做一个模糊匹配（不推荐，容易误删）
-            // 或者：修改 ChatWebSocketHandler，保存后推送 ACK。
-            
-            // 让我们采用方案 1 的变体：修改 ChatWebSocketHandler，在保存后，推送一条 type=10 (System/Ack) 的消息给发送者
             throw new RuntimeException("消息未同步或不存在，请刷新页面后重试");
         }
 
@@ -94,6 +77,7 @@ public class ImChatMessageServiceImpl extends ServiceImpl<ImChatMessageMapper, I
         // 推送撤回通知给接收方
         try {
             Map<String, Object> recallMsg = Map.of(
+                "event", "recall",
                 "type", 2, // 2 表示撤回提示
                 "content", "对方撤回了一条消息",
                 "messageId", messageId,

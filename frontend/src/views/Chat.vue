@@ -4,9 +4,6 @@
     <div class="friend-list">
       <div class="list-header">
         <h3>消息</h3>
-        <el-button type="primary" size="small" circle @click="showAddFriend = true">
-          <el-icon><Plus /></el-icon>
-        </el-button>
       </div>
       
       <div class="list-content">
@@ -26,8 +23,8 @@
           </div>
         </div>
 
-        <div 
-          v-for="friend in friendList" 
+        <div
+          v-for="friend in conversationList"
           :key="friend.userId"
           class="friend-item"
           :class="{ active: currentChatUser?.userId === friend.userId }"
@@ -35,11 +32,14 @@
         >
           <div class="avatar-wrapper">
             <el-avatar :size="40" :src="friend.avatar || defaultAvatar" />
-            <span v-if="unreadCounts[friend.userId]" class="badge">{{ unreadCounts[friend.userId] }}</span>
+            <span v-if="unreadCounts[String(friend.userId)]" class="badge">{{ unreadCounts[String(friend.userId)] }}</span>
           </div>
           <div class="info">
-            <div class="name">{{ friend.remark || friend.realName || friend.username }}</div>
-            <div class="last-msg text-ellipsis">点击开始聊天</div>
+            <div class="top-row">
+              <div class="name">{{ friend.remark || friend.realName || friend.username }}</div>
+              <div class="time">{{ friend.lastMessageTimeText }}</div>
+            </div>
+            <div class="last-msg text-ellipsis">{{ friend.lastMessagePreview }}</div>
           </div>
         </div>
       </div>
@@ -70,9 +70,9 @@
               <el-avatar class="avatar" :size="36" :src="msg.isSelf ? myAvatar : (currentChatUser.avatar || defaultAvatar)" />
               
               <div class="bubble-wrapper">
-                <div 
-                  class="bubble" 
-                  :class="{ recalled: msg.isRecalled }"
+                <div
+                  class="bubble"
+                  :class="{ recalled: msg.isRecalled, pending: msg.event === 'pending' }"
                   @contextmenu.prevent="showContextMenu($event, msg)"
                 >
                   <template v-if="msg.isRecalled">
@@ -88,6 +88,7 @@
                     />
                   </template>
                 </div>
+                <div v-if="msg.event === 'pending'" class="pending-tip">发送中...</div>
               </div>
             </div>
           </div>
@@ -152,7 +153,7 @@
     </div>
 
     <div class="empty-state" v-else>
-      <el-empty description="选择一个好友开始聊天" />
+      <el-empty description="选择一个会话开始聊天" />
     </div>
 
     <!-- 右键菜单 -->
@@ -168,7 +169,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, onUnmounted, watch } from 'vue'
-import { Plus, More, Picture, UserFilled, Check, Close } from '@element-plus/icons-vue'
+import { More, Picture, UserFilled, Check, Close } from '@element-plus/icons-vue'
 import { useChatStore } from '../stores/chat'
 import { storeToRefs } from 'pinia'
 import request from '../utils/request'
@@ -196,7 +197,54 @@ const selectedMessage = ref(null)
 
 const currentMessages = computed(() => {
   if (!currentChatUser.value) return []
-  return messages.value[currentChatUser.value.userId] || []
+  return messages.value[String(currentChatUser.value.userId)] || []
+})
+
+const getLastMessagePreview = (msg) => {
+  if (!msg) return '暂无消息'
+  if (msg.isRecalled) return '该消息已撤回'
+  if (msg.type === 1) return '[图片]'
+  return msg.content || '暂无消息'
+}
+
+const formatMessageTime = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  if (Number.isNaN(date.getTime())) return ''
+  const now = new Date()
+  if (date.toDateString() === now.toDateString()) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  }
+  return `${date.getMonth() + 1}/${date.getDate()}`
+}
+
+const conversationList = computed(() => {
+  return [...friendList.value]
+    .map(friend => {
+      const list = messages.value[String(friend.userId)] || []
+      const lastMessage = list.length ? list[list.length - 1] : null
+      const unread = unreadCounts.value[String(friend.userId)] || 0
+      const backendLastTime = friend.lastMessageTime ? new Date(friend.lastMessageTime).getTime() : 0
+      const lastTime = lastMessage?.createTime ? new Date(lastMessage.createTime).getTime() : backendLastTime
+      const lastMessagePreview = lastMessage
+        ? getLastMessagePreview(lastMessage)
+        : (friend.lastMessageIsRecalled === 1
+          ? '该消息已撤回'
+          : (friend.lastMessageType === 1 ? '[图片]' : (friend.lastMessage || '暂无消息')))
+      const lastMessageTimeText = formatMessageTime(lastMessage?.createTime || friend.lastMessageTime)
+      return {
+        ...friend,
+        unread,
+        lastTime,
+        lastMessagePreview,
+        lastMessageTimeText
+      }
+    })
+    .sort((a, b) => {
+      if (b.unread !== a.unread) return b.unread - a.unread
+      if (b.lastTime !== a.lastTime) return b.lastTime - a.lastTime
+      return String(a.userId).localeCompare(String(b.userId))
+    })
 })
 
 // Auto scroll when messages change
@@ -224,11 +272,6 @@ onMounted(async () => {
     }
   }
   
-  // Watch for unread counts change to re-sort or highlight (Optional)
-  watch(unreadCounts, (newCounts) => {
-    // We could re-sort friendList here if we want to move unread to top
-  }, { deep: true })
-  
   // 点击空白处关闭右键菜单
   document.addEventListener('click', closeContextMenu)
 })
@@ -241,7 +284,7 @@ const loadFriends = async () => {
   try {
     const res = await request.get('/im/friend/list')
     if (res.code === 200) {
-      friendList.value = res.data
+      friendList.value = res.data || []
     }
   } catch (error) {
     console.error('Failed to load friends:', error)
@@ -252,7 +295,7 @@ const loadFriendRequests = async () => {
   try {
     const res = await request.get('/im/friend/request/pending')
     if (res.code === 200) {
-      friendRequests.value = res.data
+      friendRequests.value = res.data || []
     }
   } catch (e) {
     console.error(e)
@@ -305,10 +348,10 @@ const selectFriend = async (friend) => {
       params: { friendId: friend.userId, size: 20 }
     })
     if (res.code === 200) {
-      chatStore.loadHistory(friend.userId, res.data)
+      chatStore.loadHistory(friend.userId, res.data || [])
     }
   } catch (e) {
-    // 接口未就绪暂不处理
+    console.error('load history failed', e)
   }
   
   scrollToBottom()
@@ -316,7 +359,7 @@ const selectFriend = async (friend) => {
 
 const handleSend = () => {
   const content = inputContent.value.trim()
-  if (!content) return
+  if (!content || !currentChatUser.value) return
 
   if (chatStore.sendMessage(currentChatUser.value.userId, content, 0)) {
     inputContent.value = ''
@@ -325,7 +368,7 @@ const handleSend = () => {
 }
 
 const handleImageUpload = (res) => {
-  if (res.code === 200) {
+  if (res.code === 200 && currentChatUser.value) {
     chatStore.sendMessage(currentChatUser.value.userId, res.data, 1) // type 1 图片
     scrollToBottom()
   }
@@ -370,7 +413,13 @@ const closeContextMenu = () => {
 
 const handleRecall = async () => {
   if (!selectedMessage.value) return
-  
+
+  if (selectedMessage.value.event === 'pending') {
+    ElMessage.warning('消息发送中，暂时不能撤回')
+    closeContextMenu()
+    return
+  }
+
   try {
     const res = await request.post('/im/chat/recall', {
       messageId: selectedMessage.value.id
@@ -381,10 +430,11 @@ const handleRecall = async () => {
       selectedMessage.value.content = '该消息已撤回'
       ElMessage.success('撤回成功')
     } else {
-      ElMessage.error(res.message)
+      ElMessage.error(res.message || '撤回失败')
     }
   } catch (error) {
     console.error(error)
+    ElMessage.error(error?.response?.data?.message || '撤回失败')
   }
   closeContextMenu()
 }
@@ -403,7 +453,7 @@ const handleRecall = async () => {
 
 /* 左侧列表 */
 .friend-list {
-  width: 280px;
+  width: 320px;
   background: #fff;
   border-right: 1px solid #e6e6e6;
   display: flex;
@@ -504,10 +554,23 @@ const handleRecall = async () => {
   overflow: hidden;
 }
 
+.top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
 .name {
   font-weight: 500;
   color: #333;
-  margin-bottom: 4px;
+}
+
+.time {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #999;
 }
 
 .last-msg {
@@ -593,6 +656,16 @@ const handleRecall = async () => {
   background: #95ec69; /* 微信绿 */
   background: #c23e3e; /* 柳琴红 */
   color: #fff;
+}
+
+.bubble.pending {
+  opacity: 0.75;
+}
+
+.pending-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #999;
 }
 
 .bubble.recalled {

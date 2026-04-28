@@ -76,7 +76,7 @@
               <div v-if="!post.comments || post.comments.length === 0" class="empty-state">
                 暂无评论，快来抢沙发吧~
               </div>
-              <div v-else v-for="comment in post.comments" :key="comment.commentId" class="comment-item">
+              <div v-else v-for="comment in post.comments" :key="comment.commentId" class="comment-item" :class="{ 'official-comment': comment.isOfficial === 1 }">
                 <el-avatar :size="32" :src="comment.userAvatar || defaultAvatar" class="comment-avatar" 
                            @click="comment.userName !== '匿名用户' && goProfile(comment.userId)" 
                            :style="{ cursor: comment.userName !== '匿名用户' ? 'pointer' : 'default' }"/>
@@ -86,6 +86,7 @@
                           @click="comment.userName !== '匿名用户' && goProfile(comment.userId)" 
                           :style="{ cursor: comment.userName !== '匿名用户' ? 'pointer' : 'default' }">{{ comment.userName }}</span>
                     <div style="display: flex; align-items: center;">
+                      <el-tag v-if="comment.isOfficial === 1" type="warning" effect="dark" size="small" class="official-badge">官方点评</el-tag>
                       <span class="comment-time">{{ comment.createdTime }}</span>
                       <el-button link type="primary" size="small" @click="initiateReply(comment)" style="margin-left: 10px;">回复</el-button>
                       <el-button v-if="currentUserId && comment.userId === currentUserId" type="danger" link size="small" @click="handleDeleteComment(comment.commentId)" style="margin-left: 5px;">删除</el-button>
@@ -493,6 +494,15 @@ onMounted(() => {
 }
 .comment-body {
   flex: 1;
+}
+.official-comment {
+  background: #fff7e6;
+  border: 1px solid #f3d19e;
+  border-radius: 10px;
+  padding: 12px;
+}
+.official-badge {
+  margin-right: 8px;
 }
 .comment-header-row {
   display: flex;

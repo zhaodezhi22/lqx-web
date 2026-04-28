@@ -100,13 +100,13 @@ const parsedLayout = computed(() => {
 
 const getSeatColor = (seat) => {
   if (seat.status === 1) return '#f56c6c' // Sold (Red)
+  if (seat.status === 2) return '#e6a23c' // Locked (Yellow)
   if (props.selectedIds.includes(seat.id)) return '#e6a23c' // Selected/Locked (Yellow)
   return '#67c23a' // Available (Green)
 }
 
 const handleClick = (seat) => {
-  if (seat.status === 1) return // Sold
-  emit('click-seat', seat.id)
+  emit('click-seat', seat)
 }
 </script>
 

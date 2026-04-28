@@ -1,5 +1,5 @@
 import axios from 'axios'
-import router from '../router'
+import { handleAuthExpired } from './auth'
 
 const service = axios.create({
   baseURL: '/api', // 可按需调整
@@ -18,12 +18,17 @@ service.interceptors.request.use(
 )
 
 service.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    if (response?.data?.code === 401 && localStorage.getItem('token')) {
+      handleAuthExpired(response.data.message || '登录状态已过期，请重新登录')
+    }
+    return response.data
+  },
   (error) => {
     const status = error?.response?.status
-    if (status === 401) {
-      localStorage.removeItem('token')
-      router.push({ name: 'Login' })
+    const code = error?.response?.data?.code
+    if ((status === 401 || code === 401) && localStorage.getItem('token')) {
+      handleAuthExpired(error?.response?.data?.message || '登录状态已过期，请重新登录')
     }
     return Promise.reject(error)
   }

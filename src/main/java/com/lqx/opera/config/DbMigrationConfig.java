@@ -44,5 +44,19 @@ public class DbMigrationConfig implements CommandLineRunner {
         } catch (Exception e) {
             System.err.println("Migration warning: " + e.getMessage());
         }
+
+        try {
+            jdbcTemplate.execute("ALTER TABLE mall_order ADD COLUMN refund_apply_time DATETIME NULL COMMENT '退款申请时间'");
+            System.out.println("Migration: Added refund_apply_time to mall_order");
+        } catch (Exception e) {
+            // Ignore if exists
+        }
+
+        try {
+            jdbcTemplate.execute("ALTER TABLE community_post ADD COLUMN source_assignment_id BIGINT NULL COMMENT '来源作业ID'");
+            System.out.println("Migration: Added source_assignment_id to community_post");
+        } catch (Exception e) {
+            // Ignore if exists
+        }
     }
 }
