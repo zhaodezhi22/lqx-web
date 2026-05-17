@@ -10,4 +10,6 @@ public class EventDetailDTO extends PerformanceEvent {
     private String publisherName;
     private String publisherAvatar;
     private Integer publisherRole;
+    private Integer soldTicketCount;
+    private Integer availableTicketCount;
 }

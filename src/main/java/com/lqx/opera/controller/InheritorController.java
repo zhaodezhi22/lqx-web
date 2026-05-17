@@ -69,16 +69,24 @@ public class InheritorController {
     }
 
     @GetMapping("/list")
-    public Result<java.util.List<SpotlightItem>> list() {
+    public Result<java.util.List<SpotlightItem>> list(@RequestParam(required = false) String keyword,
+                                                      @RequestParam(required = false) String level) {
         java.util.List<InheritorProfile> profiles = inheritorProfileService.getListSortedByLevel();
         java.util.List<SpotlightItem> items = new java.util.ArrayList<>();
         for (InheritorProfile p : profiles) {
+            if (level != null && !level.isBlank() && !level.equals(p.getLevel())) {
+                continue;
+            }
             SysUser user = sysUserService.getById(p.getUserId());
             if (user == null) continue;
+            String displayName = user.getRealName() != null ? user.getRealName() : user.getUsername();
+            if (keyword != null && !keyword.isBlank() && !displayName.contains(keyword.trim())) {
+                continue;
+            }
             SpotlightItem item = new SpotlightItem();
             item.setInheritorId(p.getId());
             item.setUserId(user.getUserId());
-            item.setName(user.getRealName() != null ? user.getRealName() : user.getUsername());
+            item.setName(displayName);
             item.setAvatar(user.getAvatar());
             item.setLevel(p.getLevel());
             items.add(item);

@@ -1,6 +1,24 @@
 <template>
   <div class="page">
-    <div v-if="loading" class="loading">加载中...</div>
+    <div v-if="loading" class="profile-skeleton">
+      <el-skeleton animated>
+        <template #template>
+          <div class="skeleton-header">
+            <el-skeleton-item variant="circle" style="width: 100px; height: 100px;" />
+            <div class="skeleton-header-info">
+              <el-skeleton-item variant="h1" style="width: 180px;" />
+              <el-skeleton-item variant="text" style="width: 220px; margin-top: 14px;" />
+              <el-skeleton-item variant="text" style="width: 260px; margin-top: 14px;" />
+            </div>
+          </div>
+          <div class="skeleton-tabs">
+            <el-skeleton-item variant="text" style="width: 100%;" />
+            <el-skeleton-item variant="text" style="width: 100%; margin-top: 14px;" />
+            <el-skeleton-item variant="text" style="width: 88%; margin-top: 14px;" />
+          </div>
+        </template>
+      </el-skeleton>
+    </div>
     <div v-else-if="!profile" class="error">用户不存在</div>
     <div v-else class="profile-container">
       <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
@@ -105,6 +123,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
+import { getCurrentUser } from '../utils/permission'
 
 const route = useRoute()
 const router = useRouter()
@@ -142,12 +161,7 @@ const fetchData = async () => {
   loading.value = true
   
   // Get current user
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    try {
-      currentUserId.value = JSON.parse(userStr).userId
-    } catch (e) {}
-  }
+  currentUserId.value = getCurrentUser()?.userId || null
 
   try {
     const id = userId.value
@@ -270,6 +284,26 @@ const formatTime = (str) => {
   padding: 40px;
   font-size: 16px;
   color: #666;
+}
+.profile-skeleton {
+  padding: 20px 0;
+}
+.skeleton-header {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.skeleton-header-info {
+  flex: 1;
+}
+.skeleton-tabs {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
 }
 .user-header {
   display: flex;

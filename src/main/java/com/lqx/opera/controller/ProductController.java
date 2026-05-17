@@ -36,11 +36,24 @@ public class ProductController {
     }
 
     @GetMapping
-    public Result<List<Product>> listAll(@RequestParam(required = false) Integer status) {
+    public Result<List<Product>> listAll(@RequestParam(required = false) Integer status,
+                                         @RequestParam(required = false) String keyword,
+                                         @RequestParam(required = false) String sort) {
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         if (status != null) {
-            return Result.success(productService.list(new LambdaQueryWrapper<Product>().eq(Product::getStatus, status)));
+            wrapper.eq(Product::getStatus, status);
         }
-        return Result.success(productService.list());
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            wrapper.like(Product::getName, keyword.trim());
+        }
+        if ("priceAsc".equalsIgnoreCase(sort)) {
+            wrapper.orderByAsc(Product::getPrice);
+        } else if ("priceDesc".equalsIgnoreCase(sort)) {
+            wrapper.orderByDesc(Product::getPrice);
+        } else {
+            wrapper.orderByDesc(Product::getCreatedTime);
+        }
+        return Result.success(productService.list(wrapper));
     }
 
     @GetMapping("/hot")
@@ -93,6 +106,7 @@ public class ProductController {
         if (product == null) return Result.fail("商品不存在");
         
         product.setStatus(req.getStatus()); // 1-On Shelf, 2-Off/Reject
+        product.setAuditRemark(req.getRemark());
         boolean updated = productService.updateById(product);
         if (updated) {
             // Log audit action
@@ -108,6 +122,7 @@ public class ProductController {
     public static class AuditRequest {
         private Long id;
         private Integer status;
+        private String remark;
     }
 
     // Inheritor Create

@@ -18,7 +18,7 @@ const router = useRouter()
 
 const message = computed(() => {
   const queryMessage = typeof route.query.message === 'string' ? route.query.message : ''
-  return queryMessage || '当前账号没有管理员权限，无法进入后台管理界面。'
+  return queryMessage || '当前账号无权限访问该页面或执行该操作。'
 })
 
 const goHome = () => {

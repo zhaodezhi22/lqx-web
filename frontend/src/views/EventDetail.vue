@@ -1,6 +1,21 @@
 <template>
-  <div class="page" v-loading="loading">
-    <div v-if="event">
+  <div class="page">
+    <div v-if="loading" class="detail-skeleton">
+      <el-button disabled style="margin-bottom: 20px">返回</el-button>
+      <el-skeleton animated>
+        <template #template>
+          <el-skeleton-item variant="h1" style="width: 36%; height: 32px;" />
+          <div style="margin: 16px 0 12px; display: flex; align-items: center; gap: 10px;">
+            <el-skeleton-item variant="circle" style="width: 32px; height: 32px;" />
+            <el-skeleton-item variant="text" style="width: 140px;" />
+          </div>
+          <el-skeleton-item variant="text" style="width: 50%; margin-bottom: 10px;" />
+          <el-skeleton-item variant="text" style="width: 20%; margin-bottom: 20px;" />
+          <div class="seat-skeleton"></div>
+        </template>
+      </el-skeleton>
+    </div>
+    <div v-else-if="event">
       <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
       <h2>{{ event.title }}</h2>
       <div class="publisher-info" v-if="event.publisherId && event.publisherName" @click="goProfile(event.publisherId, event.publisherRole)">
@@ -53,7 +68,7 @@
         />
       </el-card>
     </div>
-    <div v-else-if="!loading" class="empty-state">
+    <div v-else class="empty-state">
       <el-empty description="未找到演出信息">
         <el-button type="primary" @click="$router.push('/events')">返回列表</el-button>
       </el-empty>
@@ -101,6 +116,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import SeatSelection from '../components/SeatSelection.vue'
 import request from '../utils/request'
+import { getCurrentUser } from '../utils/permission'
 
 const route = useRoute()
 const router = useRouter()
@@ -117,6 +133,10 @@ const nowTs = ref(Date.now())
 let refreshTimer = null
 let countdownTimer = null
 let refreshing = false
+const eventId = computed(() => {
+  const parsed = Number(route.params.id)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+})
 
 const selectedIds = computed(() => selectedOrders.value.map(item => item.seatInfo))
 
@@ -174,8 +194,13 @@ const formatCountdown = (seconds) => {
 }
 
 const fetchDetail = async () => {
+  if (!eventId.value) {
+    event.value = null
+    layout.value = null
+    return
+  }
   try {
-    const res = await request.get(`/events/${route.params.id}`)
+    const res = await request.get(`/events/${eventId.value}`)
     if (res.code === 200 && res.data) {
       event.value = res.data
       layout.value = res.data.seatLayoutJson
@@ -189,13 +214,12 @@ const fetchDetail = async () => {
 }
 
 const fetchUserPoints = async () => {
-  const userStr = localStorage.getItem('user')
-  if (!userStr) {
+  const currentUser = getCurrentUser()
+  if (!currentUser) {
     userPoints.value = 0
     return
   }
   try {
-    const currentUser = JSON.parse(userStr)
     if (!currentUser?.userId) {
       userPoints.value = 0
       return
@@ -211,15 +235,14 @@ const fetchUserPoints = async () => {
 
 const fetchPendingOrders = async () => {
   const token = localStorage.getItem('token')
-  if (!token) {
+  if (!token || !eventId.value) {
     selectedOrders.value = []
     return
   }
   try {
     const res = await request.get('/ticket/my-tickets')
     if (res.code === 200) {
-      const eventId = Number(route.params.id)
-      selectedOrders.value = (res.data || []).filter(item => item.status === 0 && item.eventId === eventId)
+      selectedOrders.value = (res.data || []).filter(item => item.status === 0 && item.eventId === eventId.value)
       const payOrderId = Number(route.query.payOrderId)
       if (!autoOpenedPayDialog.value && payOrderId) {
         const targetOrder = selectedOrders.value.find(item => item.orderId === payOrderId)
@@ -326,16 +349,18 @@ const payOrders = async () => {
 
 onMounted(async () => {
   await refreshOrderState({ showLoading: true })
-  refreshTimer = window.setInterval(() => {
-    refreshOrderState()
-  }, 5000)
-  countdownTimer = window.setInterval(async () => {
-    nowTs.value = Date.now()
-    if (selectedOrders.value.length && remainingSeconds.value <= 0) {
-      paymentVisible.value = false
-      await refreshOrderState()
-    }
-  }, 1000)
+  if (eventId.value) {
+    refreshTimer = window.setInterval(() => {
+      refreshOrderState()
+    }, 5000)
+    countdownTimer = window.setInterval(async () => {
+      nowTs.value = Date.now()
+      if (selectedOrders.value.length && remainingSeconds.value <= 0) {
+        paymentVisible.value = false
+        await refreshOrderState()
+      }
+    }, 1000)
+  }
 })
 
 onUnmounted(() => {
@@ -453,5 +478,11 @@ onUnmounted(() => {
   color: #f56c6c;
   font-size: 18px;
   font-weight: 600;
+}
+.seat-skeleton {
+  width: 100%;
+  min-height: 360px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #ebeef5 100%);
 }
 </style>

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getCurrentRole, getCurrentUser, isAdminRole, hasRole } from '../utils/permission'
 
 const routes = [
   // Auth routes (Standalone)
@@ -17,6 +18,7 @@ const routes = [
       { path: 'resources/:id', name: 'ResourceDetail', component: () => import('../views/ResourceDetail.vue') },
       { path: 'search', name: 'SearchResults', component: () => import('../views/SearchResults.vue') },
       { path: 'products', name: 'ProductMall', component: () => import('../views/ProductMall.vue') },
+      { path: 'products/:id', name: 'ProductDetail', component: () => import('../views/ProductDetail.vue') },
       { path: 'events', name: 'EventList', component: () => import('../views/EventList.vue') },
       { path: 'events/:id', name: 'EventDetail', component: () => import('../views/EventDetail.vue') },
       { path: 'inheritors', name: 'InheritorList', component: () => import('../views/InheritorList.vue') },
@@ -42,6 +44,7 @@ const routes = [
     redirect: '/admin/dashboard',
     children: [
       { path: 'dashboard', name: 'AdminDashboard', component: () => import('../views/AuditorDashboard.vue') },
+      { path: 'audit-center', name: 'AdminAuditCenter', component: () => import('../views/AdminAuditCenter.vue') },
       { path: 'inheritor-review', name: 'AdminInheritorReview', component: () => import('../views/AdminInheritorReview.vue') },
       { path: 'inheritor-level-audit', name: 'AdminInheritorLevelAudit', component: () => import('../views/AdminInheritorLevelAudit.vue') },
       { path: 'resource-audit', name: 'AdminResourceAudit', component: () => import('../views/AdminResourceAudit.vue') },
@@ -69,15 +72,8 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
-  const userStr = localStorage.getItem('user')
-  let role = 0
-  if (userStr) {
-    try {
-      role = JSON.parse(userStr).role
-    } catch (e) {
-      role = 0
-    }
-  }
+  const role = getCurrentRole()
+  const currentUser = getCurrentUser()
 
   // Protect User Profile
   if (to.name === 'UserProfile' && !token) {
@@ -92,7 +88,7 @@ router.beforeEach((to, from, next) => {
         query: { redirect: to.fullPath }
       })
     }
-    if (role < 2) {
+    if (!isAdminRole()) {
       return next({
         name: 'Forbidden',
         query: {
@@ -104,10 +100,18 @@ router.beforeEach((to, from, next) => {
 
   // Inheritor Routes Guard
   if (to.path.startsWith('/inheritor/center')) {
-    if (!token || role !== 1) {
-      alert('仅传承人可访问')
-      return next({ path: '/' })
+    if (!token || !hasRole(1)) {
+      return next({
+        name: 'Forbidden',
+        query: {
+          message: '仅传承人可访问该页面。'
+        }
+      })
     }
+  }
+
+  if ((to.name === 'Login' || to.name === 'Register') && token && currentUser) {
+    return next(isAdminRole() ? '/admin' : '/')
   }
 
   next()

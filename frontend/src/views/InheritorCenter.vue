@@ -388,7 +388,14 @@
           </el-select>
         </el-form-item>
         <el-form-item label="分类">
-          <el-input v-model="resourceForm.category" placeholder="如：经典剧目、拉魂腔" />
+          <el-select v-model="resourceForm.category" placeholder="请选择资源分类" style="width: 100%">
+            <el-option
+              v-for="item in resourceCategoryOptions"
+              :key="item.categoryId"
+              :label="item.name"
+              :value="item.name"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="封面">
            <el-upload
@@ -811,6 +818,7 @@ const resourceList = ref([])
 const resourceListLoading = ref(false)
 const resourceDialogVisible = ref(false)
 const resourceSubmitting = ref(false)
+const resourceCategoryOptions = ref([])
 const resourceForm = reactive({
   id: null,
   title: '',
@@ -820,6 +828,15 @@ const resourceForm = reactive({
   fileUrl: '',
   description: '',
 })
+
+const fetchResourceCategories = async () => {
+    try {
+        const res = await request.get('/resource-categories')
+        resourceCategoryOptions.value = res.data || []
+    } catch (e) {
+        resourceCategoryOptions.value = []
+    }
+}
 
 const fetchResources = async () => {
     resourceListLoading.value = true
@@ -851,10 +868,17 @@ const openResourceDialog = (item = null) => {
         resourceForm.fileUrl = ''
         resourceForm.description = ''
     }
+    if (!resourceCategoryOptions.value.length) {
+        fetchResourceCategories()
+    }
     resourceDialogVisible.value = true
 }
 
 const submitResource = async () => {
+  if (!resourceForm.category) {
+    ElMessage.warning('请选择资源分类')
+    return
+  }
   resourceSubmitting.value = true
   try {
     if (resourceForm.id) {
@@ -1404,6 +1428,7 @@ watch(activeTab, (val) => {
 onMounted(() => {
   fetchProfile()
   fetchApprenticeship()
+  fetchResourceCategories()
   fetchResources()
   fetchProducts()
   fetchActivities()

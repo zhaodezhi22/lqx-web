@@ -1,11 +1,11 @@
 <template>
   <div class="home-inheritors">
-    <SectionTitle text="—— 大师风采 ——" />
+    <SectionTitle text="大师风采" more-link="/inheritors" />
     <el-row :gutter="20">
-      <el-col :span="6" v-for="it in itemsToShow" :key="it.userId">
-        <div class="inheritor-card">
+      <el-col :xs="24" :sm="12" :md="6" v-for="it in itemsToShow" :key="it.userId">
+        <div class="inheritor-card" @click="viewProfile(it.userId)">
           <el-avatar :size="80" :src="it.avatar || defaultAvatar" />
-          <h3>{{ it.name }}</h3>
+          <h3 class="name">{{ it.name }}</h3>
           <p class="title">{{ it.level || '传承人' }}</p>
           <el-button type="primary" link @click="viewProfile(it.userId)">查看资料</el-button>
         </div>
@@ -47,7 +47,7 @@ const fetchData = async () => {
 }
 
 const viewProfile = (userId) => {
-  router.push('/inheritors') // Placeholder: could navigate to specific profile page later
+  router.push(`/user/${userId}`)
 }
 
 onMounted(() => {
@@ -69,16 +69,34 @@ onMounted(() => {
   background: #fff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22none%22 stroke=%22%23e7d8c3%22 stroke-width=%221%22/></svg>') repeat;
   background-size: 16px 16px;
   transition: box-shadow .3s, transform .3s;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.inheritor-card h3 {
+
+.inheritor-card .name {
   margin: 10px 0 4px 0;
   color: #333;
+  min-height: 52px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .inheritor-card .title {
   margin: 0 0 10px 0;
   color: #AA1D1D;
+  min-height: 24px;
+  line-height: 1.6;
+}
+
+.inheritor-card :deep(.el-button) {
+  margin-top: auto;
 }
 .inheritor-card:hover {
   box-shadow: 0 12px 24px rgba(170, 29, 29, .12);
+  transform: translateY(-6px);
 }
 </style>

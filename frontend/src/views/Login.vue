@@ -68,6 +68,7 @@ import { User, Lock } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useRoute, useRouter } from 'vue-router'
 import { startTokenExpiryMonitor } from '../utils/auth'
+import { isAdminRole } from '../utils/permission'
 
 const router = useRouter()
 const route = useRoute()
@@ -98,7 +99,7 @@ const onSubmit = async () => {
       return
     }
 
-    if (res.data.user.role >= 2) {
+    if (isAdminRole()) {
       router.push('/admin')
     } else {
       router.push('/')

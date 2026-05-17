@@ -51,8 +51,7 @@ public class AdminResourceController {
         }
         
         resource.setStatus(req.getStatus());
-        // Maybe add audit remark? Entity doesn't seem to have it based on memory, but let's check.
-        // Assuming just status for now.
+        resource.setAuditRemark(req.getMessage());
         
         boolean success = heritageResourceService.updateById(resource);
         return success ? Result.success(true) : Result.fail("审核失败");

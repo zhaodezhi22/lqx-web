@@ -1,5 +1,27 @@
 <template>
   <div class="page-container">
+    <div class="header-actions">
+      <div class="header-left">
+        <el-button @click="goBackToList">返回传承人列表</el-button>
+        <el-switch
+          v-model="onlyConnected"
+          inline-prompt
+          active-text="只看有关系"
+          inactive-text="显示全部"
+          @change="applyFilters"
+        />
+      </div>
+      <div class="header-right">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="输入姓名搜索传承人"
+          clearable
+          class="search-input"
+          @keyup.enter="locateInheritor"
+        />
+        <el-button type="primary" @click="locateInheritor">搜索定位</el-button>
+      </div>
+    </div>
     <div class="chart-wrapper">
       <div ref="chartRef" class="echarts-box"></div>
     </div>
@@ -40,14 +62,18 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import request from '../utils/request'
 import { ElMessage } from 'element-plus'
 
 const route = useRoute()
+const router = useRouter()
 const chartRef = ref(null)
 let myChart = null
+const sourceGraphData = ref({ nodes: [], links: [] })
+const onlyConnected = ref(false)
+const searchKeyword = ref('')
 
 // Dialog state
 const dialogVisible = ref(false)
@@ -77,13 +103,73 @@ const getLevelType = (level) => {
   return 'info'
 }
 
-const initChart = (data) => {
+const buildChartData = (data, keyword = '') => {
+  const normalizedKeyword = keyword.trim().toLowerCase()
+
+  return {
+    nodes: data.nodes.map(node => {
+      let symbol = node.symbol
+      let avatarUrl = ''
+      if (symbol) {
+        if (symbol.startsWith('image://')) {
+          avatarUrl = symbol.substring(8)
+        } else {
+          avatarUrl = symbol
+          symbol = 'image://' + symbol
+        }
+      } else {
+        avatarUrl = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+        symbol = 'image://' + avatarUrl
+      }
+
+      const isSearchMatch = normalizedKeyword && node.name?.toLowerCase().includes(normalizedKeyword)
+      const isTarget = Boolean(node.isTarget)
+      const isHighlighted = isTarget || isSearchMatch
+
+      return {
+        id: String(node.id),
+        name: node.name,
+        symbol,
+        category: node.category,
+        value: node.category,
+        symbolSize: isHighlighted ? 72 : 60,
+        itemStyle: isHighlighted ? {
+          borderColor: isTarget ? '#E6A23C' : '#409EFF',
+          borderWidth: 4,
+          shadowBlur: 14,
+          shadowColor: isTarget ? '#E6A23C' : '#409EFF'
+        } : undefined,
+        label: isHighlighted ? {
+          show: true,
+          position: 'bottom',
+          formatter: '{b}',
+          fontWeight: 'bold',
+          color: isTarget ? '#E6A23C' : '#409EFF',
+          fontSize: 14
+        } : undefined,
+        rawData: {
+          ...node,
+          avatarUrl,
+          isSearchMatch
+        }
+      }
+    }),
+    links: data.links.map(link => ({
+      source: String(link.source),
+      target: String(link.target)
+    }))
+  }
+}
+
+const initChart = (data, keyword = '') => {
   if (myChart) myChart.dispose()
   
   myChart = echarts.init(chartRef.value)
+
+  const chartData = buildChartData(data, keyword)
   
   // Dynamic categories from data to ensure all levels are displayed
-  const uniqueCategories = Array.from(new Set(data.nodes.map(n => n.category))).filter(c => c)
+  const uniqueCategories = Array.from(new Set(chartData.nodes.map(n => n.category))).filter(c => c)
   // Define order preference
   const levelOrder = ['国家级', '省级', '市级', '县级', '县/区级']
   uniqueCategories.sort((a, b) => {
@@ -134,54 +220,8 @@ const initChart = (data) => {
         edgeLabel: {
           fontSize: 12
         },
-        data: data.nodes.map(node => {
-          // Handle symbol image prefix
-          let symbol = node.symbol
-          let avatarUrl = ''
-          if (symbol) {
-             if (symbol.startsWith('image://')) {
-                avatarUrl = symbol.substring(8)
-             } else {
-                avatarUrl = symbol
-                symbol = 'image://' + symbol
-             }
-          } else {
-             // Default avatar if none provided
-             avatarUrl = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
-             symbol = 'image://' + avatarUrl
-          }
-
-          return {
-            id: String(node.id),
-            name: node.name,
-            symbol: symbol,
-            category: node.category,
-            value: node.category,
-            itemStyle: node.isTarget ? {
-              borderColor: '#E6A23C',
-              borderWidth: 4,
-              shadowBlur: 10,
-              shadowColor: '#E6A23C'
-            } : undefined,
-            label: node.isTarget ? {
-              show: true,
-              position: 'bottom',
-              formatter: '{b}',
-              fontWeight: 'bold',
-              color: '#E6A23C',
-              fontSize: 14
-            } : undefined,
-            // Custom data for click handler
-            rawData: {
-              ...node,
-              avatarUrl
-            }
-          }
-        }),
-        links: data.links.map(link => ({
-          source: String(link.source),
-          target: String(link.target)
-        })),
+        data: chartData.nodes,
+        links: chartData.links,
         categories: categories,
         force: {
           repulsion: 500, // Nodes repel each other
@@ -199,6 +239,7 @@ const initChart = (data) => {
   myChart.setOption(option)
 
   // Click Event Listener
+  myChart.off('click')
   myChart.on('click', (params) => {
     if (params.dataType === 'node') {
       const data = params.data.rawData
@@ -213,6 +254,73 @@ const initChart = (data) => {
       dialogVisible.value = true
     }
   })
+
+  const matchedNode = chartData.nodes.find(node => node.rawData?.isSearchMatch)
+  if (matchedNode) {
+    window.setTimeout(() => {
+      try {
+        myChart.dispatchAction({
+          type: 'focusNodeAdjacency',
+          seriesIndex: 0,
+          dataIndex: chartData.nodes.findIndex(node => node.id === matchedNode.id)
+        })
+      } catch (e) {
+        // ignore focus failures
+      }
+    }, 200)
+  }
+}
+
+const getFilteredGraphData = () => {
+  const data = sourceGraphData.value
+  if (!onlyConnected.value) {
+    return data
+  }
+
+  const connectedIds = new Set()
+  data.links.forEach(link => {
+    connectedIds.add(String(link.source))
+    connectedIds.add(String(link.target))
+  })
+
+  return {
+    nodes: data.nodes.filter(node => connectedIds.has(String(node.id))),
+    links: data.links
+  }
+}
+
+const applyFilters = () => {
+  const filteredData = getFilteredGraphData()
+  if (!filteredData.nodes.length) {
+    if (myChart) {
+      myChart.clear()
+    }
+    ElMessage.warning('当前筛选条件下暂无可展示的传承关系')
+    return
+  }
+  initChart(filteredData, searchKeyword.value)
+}
+
+const locateInheritor = () => {
+  const keyword = searchKeyword.value.trim()
+  if (!keyword) {
+    applyFilters()
+    return
+  }
+
+  const filteredData = getFilteredGraphData()
+  const matched = filteredData.nodes.find(node => node.name?.includes(keyword))
+  if (!matched) {
+    ElMessage.warning('未找到该传承人')
+    return
+  }
+
+  initChart(filteredData, keyword)
+  ElMessage.success(`已定位到传承人：${matched.name}`)
+}
+
+const goBackToList = () => {
+  router.push('/inheritors')
 }
 
 const fetchData = async () => {
@@ -221,7 +329,11 @@ const fetchData = async () => {
     const url = id ? `/inheritor/graph/${id}` : '/inheritor/graph/all'
     const res = await request.get(url)
     if (res.code === 200 && res.data) {
-      initChart(res.data)
+      sourceGraphData.value = {
+        nodes: res.data.nodes || [],
+        links: res.data.links || []
+      }
+      applyFilters()
     } else {
       ElMessage.warning('暂无谱系数据')
     }
@@ -259,7 +371,20 @@ const handleResize = () => {
 }
 
 .header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
+}
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.search-input {
+  width: 240px;
 }
 
 .chart-wrapper {
@@ -302,5 +427,21 @@ const handleResize = () => {
   margin: 0;
   line-height: 1.5;
   color: #666;
+}
+
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-left,
+  .header-right {
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    width: 100%;
+  }
 }
 </style>

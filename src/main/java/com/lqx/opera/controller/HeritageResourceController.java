@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.common.Result;
 import com.lqx.opera.entity.HeritageResource;
+import com.lqx.opera.entity.ResourceCategory;
 import com.lqx.opera.service.HeritageResourceService;
+import com.lqx.opera.service.ResourceCategoryService;
 import com.lqx.opera.service.SysUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
@@ -18,21 +20,33 @@ public class HeritageResourceController {
 
     private final HeritageResourceService heritageResourceService;
     private final SysUserService sysUserService;
+    private final ResourceCategoryService resourceCategoryService;
 
-    public HeritageResourceController(HeritageResourceService heritageResourceService, SysUserService sysUserService) {
+    public HeritageResourceController(HeritageResourceService heritageResourceService,
+                                      SysUserService sysUserService,
+                                      ResourceCategoryService resourceCategoryService) {
         this.heritageResourceService = heritageResourceService;
         this.sysUserService = sysUserService;
+        this.resourceCategoryService = resourceCategoryService;
     }
 
     @GetMapping
     public Result<Page<HeritageResource>> list(
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) Integer type,
+            @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer size) {
         
         LambdaQueryWrapper<HeritageResource> wrapper = new LambdaQueryWrapper<>();
         if (category != null && !category.isEmpty()) {
             wrapper.eq(HeritageResource::getCategory, category);
+        }
+        if (type != null) {
+            wrapper.eq(HeritageResource::getType, type);
+        }
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            wrapper.like(HeritageResource::getTitle, keyword.trim());
         }
         // Show all resources (including pending) as per user requirement to see data
         // wrapper.eq(HeritageResource::getStatus, 1);
@@ -52,7 +66,7 @@ public class HeritageResourceController {
     }
 
     @GetMapping("/{id}")
-    public Result<HeritageResource> detail(@PathVariable Long id) {
+    public Result<com.lqx.opera.dto.ResourceDetailDTO> detail(@PathVariable Long id) {
         HeritageResource resource = heritageResourceService.getById(id);
         if (resource == null) {
             return Result.fail(404, "资源不存在");
@@ -87,6 +101,9 @@ public class HeritageResourceController {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) {
             return Result.fail(401, "未登录");
+        }
+        if (!isValidCategory(resource.getCategory())) {
+            return Result.fail(400, "资源分类不存在，请重新选择");
         }
         
         com.lqx.opera.entity.SysUser user = sysUserService.getById(userId);
@@ -129,6 +146,9 @@ public class HeritageResourceController {
     public Result<Boolean> updateMyResource(@PathVariable Long id, @RequestBody HeritageResource resource, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) return Result.fail(401, "未登录");
+        if (!isValidCategory(resource.getCategory())) {
+            return Result.fail(400, "资源分类不存在，请重新选择");
+        }
 
         HeritageResource old = heritageResourceService.getById(id);
         if (old == null) return Result.fail(404, "资源不存在");
@@ -163,6 +183,9 @@ public class HeritageResourceController {
     @PutMapping("/{id}")
     @RequireRole({2, 3})
     public Result<Boolean> update(@PathVariable Long id, @RequestBody HeritageResource resource) {
+        if (!isValidCategory(resource.getCategory())) {
+            return Result.fail(400, "资源分类不存在，请重新选择");
+        }
         resource.setResourceId(id);
         boolean ok = heritageResourceService.updateById(resource);
         return ok ? Result.success(true) : Result.fail("更新失败");
@@ -174,5 +197,13 @@ public class HeritageResourceController {
     public Result<Boolean> delete(@PathVariable Long id) {
         boolean ok = heritageResourceService.removeById(id);
         return ok ? Result.success(true) : Result.fail("删除失败");
+    }
+
+    private boolean isValidCategory(String category) {
+        if (category == null || category.trim().isEmpty()) {
+            return false;
+        }
+        return resourceCategoryService.count(new LambdaQueryWrapper<ResourceCategory>()
+                .eq(ResourceCategory::getName, category.trim())) > 0;
     }
 }

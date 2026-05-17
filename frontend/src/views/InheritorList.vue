@@ -2,12 +2,40 @@
   <div class="page-container">
     <div class="header-section">
       <h2>非遗传承人</h2>
-      <div class="filters">
-         <!-- Placeholder for future filters -->
-      </div>
+      <PageFilterBar>
+        <el-input
+          v-model="keyword"
+          placeholder="搜索传承人姓名"
+          clearable
+          class="filter-item keyword-input"
+          @keyup.enter="fetchInheritors"
+        />
+        <el-select v-model="level" clearable class="filter-item" @change="fetchInheritors">
+          <el-option v-for="item in INHERITOR_LEVEL_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+        <el-button @click="resetFilters">重置</el-button>
+        <template #extra>
+          <el-button type="primary" plain @click="goToAllGraph">查看全部传承关系</el-button>
+        </template>
+      </PageFilterBar>
     </div>
 
-    <div class="inheritor-grid" v-loading="loading">
+    <div v-if="loading" class="inheritor-grid">
+      <el-card v-for="item in 8" :key="`inheritor-skeleton-${item}`" class="inheritor-card" shadow="never">
+        <el-skeleton animated>
+          <template #template>
+            <div class="card-content">
+              <el-skeleton-item variant="circle" style="width: 80px; height: 80px;" />
+              <el-skeleton-item variant="h3" style="width: 55%; margin-top: 18px" />
+              <el-skeleton-item variant="text" style="width: 40%; margin-top: 12px" />
+              <el-skeleton-item variant="text" style="width: 75%; margin-top: 18px" />
+              <el-skeleton-item variant="button" style="width: 100%; margin-top: 18px" />
+            </div>
+          </template>
+        </el-skeleton>
+      </el-card>
+    </div>
+    <div v-else class="inheritor-grid">
       <el-card 
         v-for="item in inheritors" 
         :key="item.userId" 
@@ -63,10 +91,19 @@ import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '../utils/request'
 import { ElMessage } from 'element-plus'
+import { INHERITOR_LEVEL_OPTIONS } from '../constants/dicts'
+import PageFilterBar from '../components/common/PageFilterBar.vue'
+import { clearRememberedState, loadRememberedState, saveRememberedState } from '../utils/viewState'
 
 const router = useRouter()
 const inheritors = ref([])
 const loading = ref(false)
+const rememberedState = loadRememberedState('inheritor-list-filters', {
+  keyword: '',
+  level: ''
+})
+const keyword = ref(rememberedState.keyword)
+const level = ref(rememberedState.level)
 
 const applyDialogVisible = ref(false)
 const applyForm = reactive({
@@ -78,7 +115,14 @@ const applyForm = reactive({
 const fetchInheritors = async () => {
   loading.value = true
   try {
-    const res = await request.get('/inheritor/list')
+    const params = {}
+    if (keyword.value.trim()) params.keyword = keyword.value.trim()
+    if (level.value) params.level = level.value
+    saveRememberedState('inheritor-list-filters', {
+      keyword: keyword.value,
+      level: level.value
+    })
+    const res = await request.get('/inheritor/list', { params })
     if (res.code === 200) {
       inheritors.value = res.data || []
     }
@@ -89,9 +133,20 @@ const fetchInheritors = async () => {
   }
 }
 
+const resetFilters = () => {
+  keyword.value = ''
+  level.value = ''
+  clearRememberedState('inheritor-list-filters')
+  fetchInheritors()
+}
+
 const goToGraph = (item) => {
   // Pass the inheritor ID to focus on their lineage
   router.push({ path: '/inheritor/graph', query: { id: item.inheritorId } })
+}
+
+const goToAllGraph = () => {
+  router.push('/inheritor/graph')
 }
 
 const goToProfile = (item) => {
@@ -138,7 +193,17 @@ onMounted(() => {
   margin: 0 auto;
 }
 .header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
   margin-bottom: 24px;
+}
+.filter-item {
+  width: 180px;
+}
+.keyword-input {
+  width: 240px;
 }
 .inheritor-grid {
   display: grid;
@@ -173,5 +238,12 @@ onMounted(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .header-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

@@ -333,6 +333,17 @@ const handleQuickSignIn = async () => {
   font-weight: 500;
 }
 
+.auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.auth-buttons :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .auth-buttons .login-btn {
   background-color: #AA1D1D;
   border-color: #AA1D1D;

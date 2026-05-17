@@ -15,11 +15,12 @@
           <span>仪表盘</span>
         </el-menu-item>
         
-        <el-sub-menu index="1" v-if="role >= 2">
+        <el-sub-menu index="1" v-if="isAdmin">
           <template #title>
             <el-icon><Document /></el-icon>
             <span>非遗业务</span>
           </template>
+          <el-menu-item index="/admin/audit-center">统一审核中心</el-menu-item>
           <el-menu-item index="/admin/inheritor-review">传承人审核</el-menu-item>
           <el-menu-item index="/admin/inheritor-level-audit">传承人等级审核</el-menu-item>
           <el-menu-item index="/admin/resource-audit">资源审核</el-menu-item>
@@ -27,7 +28,7 @@
           <el-menu-item index="/admin/product-audit">商品审核</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="2" v-if="role >= 2">
+        <el-sub-menu index="2" v-if="isAdmin">
           <template #title>
             <el-icon><Money /></el-icon>
             <span>商业运营</span>
@@ -36,7 +37,7 @@
           <el-menu-item index="/admin/mall">商城管理</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="3" v-if="role >= 2">
+        <el-sub-menu index="3" v-if="isAdmin">
           <template #title>
             <el-icon><Warning /></el-icon>
             <span>内容治理</span>
@@ -47,22 +48,22 @@
           <el-menu-item index="/admin/posts">帖子管理</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="5" v-if="role >= 2">
+        <el-sub-menu index="5" v-if="isAdmin">
           <template #title>
             <el-icon><Monitor /></el-icon>
             <span>站点管理</span>
           </template>
           <el-menu-item index="/admin/home-content">首页内容</el-menu-item>
-          <el-menu-item index="/admin/users" v-if="role == 3">用户管理</el-menu-item>
+          <el-menu-item index="/admin/users" v-if="isRoot">用户管理</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="4" v-if="role == 3">
+        <el-sub-menu index="4" v-if="isAdmin">
           <template #title>
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
           </template>
-          <el-menu-item index="/admin/logs">系统日志</el-menu-item>
-          <el-menu-item index="/admin/settings">系统设置</el-menu-item>
+          <el-menu-item index="/admin/logs">操作日志</el-menu-item>
+          <el-menu-item index="/admin/settings" v-if="isRoot">系统设置</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -96,28 +97,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Odometer, Document, Setting, ArrowDown, Money, Warning, Monitor } from '@element-plus/icons-vue'
+import { getCurrentUser, isAdminRole, isRootRole } from '../utils/permission'
 
 const router = useRouter()
 const username = ref('')
 const role = ref(0)
+const isAdmin = computed(() => isAdminRole())
+const isRoot = computed(() => isRootRole())
 
 onMounted(() => {
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr)
-      username.value = user.username
-      role.value = user.role
-      
-      // Basic protection: if not admin, redirect
-      if (role.value < 2) {
-        router.push('/')
-      }
-    } catch (e) {
-      router.push('/login')
+  const user = getCurrentUser()
+  if (user) {
+    username.value = user.username
+    role.value = user.role
+    if (!isAdmin.value) {
+      router.push('/')
     }
   } else {
     router.push('/login')

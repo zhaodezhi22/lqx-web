@@ -14,9 +14,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.regex.Pattern;
+
 @RestController
 @RequestMapping("/api/auth")
 public class LoginController {
+    private static final Pattern MOBILE_PATTERN = Pattern.compile("^1\\d{10}$");
 
     private final SysUserService sysUserService;
     private final InheritorProfileMapper inheritorProfileMapper;
@@ -33,21 +36,25 @@ public class LoginController {
 
     @PostMapping("/register")
     public Result<Boolean> register(@RequestBody RegisterRequest req) {
-        if (req.getUsername() == null || req.getUsername().trim().isEmpty()
+        String username = req.getUsername() == null ? null : req.getUsername().trim();
+        if (username == null || username.isEmpty()
                 || req.getPassword() == null || req.getPassword().trim().isEmpty()) {
-            return Result.fail(400, "用户名和密码不能为空");
+            return Result.fail(400, "手机号和密码不能为空");
+        }
+        if (!MOBILE_PATTERN.matcher(username).matches()) {
+            return Result.fail(400, "账号只能使用11位手机号注册");
         }
 
-        Long count = sysUserService.lambdaQuery().eq(SysUser::getUsername, req.getUsername()).count();
+        Long count = sysUserService.lambdaQuery().eq(SysUser::getUsername, username).count();
         if (count != null && count > 0) {
-            return Result.fail(400, "用户名已存在");
+            return Result.fail(400, "手机号已存在");
         }
         SysUser user = new SysUser();
-        user.setUsername(req.getUsername());
+        user.setUsername(username);
         user.setPassword(passwordEncoder.encode(req.getPassword()));
         user.setRole(req.getRole() == null ? 0 : req.getRole());
         user.setRealName(req.getRealName());
-        user.setPhone(req.getPhone());
+        user.setPhone(username);
         user.setEmail(req.getEmail());
         user.setStatus(1);
         boolean saved = sysUserService.save(user);

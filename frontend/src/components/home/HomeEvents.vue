@@ -1,9 +1,9 @@
 <template>
   <div class="home-events">
-    <SectionTitle text="—— 现场演出 ——" />
+    <SectionTitle text="现场演出" more-link="/events" />
     <div class="events-container">
       <el-row :gutter="24">
-        <el-col :span="8" v-for="(ev, index) in eventsToShow" :key="ev.eventId" class="event-col">
+        <el-col :xs="24" :sm="12" :md="8" v-for="(ev, index) in eventsToShow" :key="ev.eventId" class="event-col">
           <div class="event-card" @click="book(ev.eventId)">
             <div class="event-cover">
               <img :src="getCoverImage(ev, index)" alt="cover" class="cover-img" />
@@ -13,6 +13,9 @@
               </div>
               <div class="status-tag" :class="{ active: ev.status === 1 }">
                 {{ ev.status === 1 ? '售票中' : '已结束' }}
+              </div>
+              <div class="event-highlight" v-if="ev.status === 1 && !isExpired(ev.showTime)">
+                {{ getScheduleText(ev.showTime) }}
               </div>
             </div>
             
@@ -116,6 +119,15 @@ const formatFullTime = (iso) => {
   return `${y}-${m}-${da} ${h}:${min}`
 }
 
+const getScheduleText = (iso) => {
+  if (!iso) return '即将开演'
+  const diff = new Date(iso).getTime() - Date.now()
+  const dayMs = 24 * 60 * 60 * 1000
+  if (diff <= dayMs) return '24小时内开演'
+  if (diff <= dayMs * 3) return '本周推荐'
+  return '即将开演'
+}
+
 // Placeholder images for visual variety
 const covers = [
   'https://images.unsplash.com/photo-1514525253440-b393452e3383?q=80&w=800&auto=format&fit=crop',
@@ -146,14 +158,18 @@ onMounted(() => {
 }
 
 .events-container {
-  padding: 0 10px;
+  padding: 0 4px;
+}
+
+.event-col {
+  display: flex;
 }
 
 .event-card {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 12px 24px rgba(40, 24, 18, 0.08);
   transition: all 0.3s ease;
   cursor: pointer;
   height: 100%;
@@ -168,7 +184,7 @@ onMounted(() => {
 }
 
 .event-cover {
-  height: 180px;
+  height: 220px;
   position: relative;
   overflow: hidden;
 }
@@ -225,8 +241,20 @@ onMounted(() => {
   background: #67C23A;
 }
 
+.event-highlight {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #aa1d1d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .event-info {
-  padding: 16px;
+  padding: 18px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -242,11 +270,14 @@ onMounted(() => {
   font-size: 16px;
   font-weight: bold;
   color: #333;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   flex: 1;
   margin: 0;
+  line-height: 1.6;
+  min-height: 52px;
 }
 .official-tag {
   margin-left: 8px;
@@ -254,10 +285,10 @@ onMounted(() => {
 }
 .meta-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   color: #666;
   font-size: 13px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .meta-row .el-icon {
@@ -273,8 +304,8 @@ onMounted(() => {
 
 .divider {
   height: 1px;
-  background: #f0f0f0;
-  margin: 12px 0;
+  background: #f3e9dc;
+  margin: 14px 0;
 }
 
 .footer {
@@ -294,7 +325,7 @@ onMounted(() => {
 }
 
 .amount {
-  font-size: 20px;
+  font-size: 24px;
   margin: 0 2px;
 }
 
@@ -306,5 +337,11 @@ onMounted(() => {
 
 .buy-btn {
   padding: 8px 20px;
+}
+
+@media (max-width: 992px) {
+  .event-col:nth-child(n + 3) {
+    margin-top: 24px;
+  }
 }
 </style>

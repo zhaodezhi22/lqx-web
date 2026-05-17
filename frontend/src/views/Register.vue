@@ -28,8 +28,9 @@
           <el-form-item prop="username">
             <el-input 
               v-model="form.username" 
-              placeholder="用户名" 
+              placeholder="请输入11位手机号" 
               :prefix-icon="User"
+              maxlength="11"
             />
           </el-form-item>
           <el-form-item prop="password">
@@ -81,10 +82,21 @@ const form = reactive({
 const loading = ref(false)
 const formRef = ref()
 
+const phoneValidator = (rule, value, callback) => {
+  if (!value) {
+    callback(new Error('请输入手机号'))
+    return
+  }
+  if (!/^1\d{10}$/.test(value)) {
+    callback(new Error('账号只能为11位手机号'))
+    return
+  }
+  callback()
+}
+
 const rules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '用户名长度为3-20个字符', trigger: 'blur' }
+    { validator: phoneValidator, trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },

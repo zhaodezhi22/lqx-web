@@ -1,12 +1,37 @@
 <template>
   <div class="page">
-    <div class="filters">
-      <el-select v-model="category" placeholder="按分类筛选" clearable @change="handleFilterChange">
+    <PageFilterBar>
+      <el-input
+        v-model="keyword"
+        placeholder="搜索资源标题"
+        clearable
+        class="filter-item keyword-input"
+        @keyup.enter="handleFilterChange"
+      />
+      <el-select v-model="category" placeholder="按分类筛选" clearable class="filter-item" @change="handleFilterChange">
         <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
       </el-select>
-    </div>
+      <el-select v-model="type" placeholder="按类型筛选" clearable class="filter-item" @change="handleFilterChange">
+        <el-option v-for="item in RESOURCE_TYPE_OPTIONS.filter(option => option.value !== '')" :key="item.value" :label="item.label" :value="item.value" />
+      </el-select>
+      <el-button type="primary" @click="handleFilterChange">筛选</el-button>
+      <el-button @click="resetFilters">重置</el-button>
+    </PageFilterBar>
     
-    <div v-loading="loading">
+    <div v-if="loading" class="grid">
+        <div class="card skeleton-card" v-for="item in 8" :key="`resource-skeleton-${item}`">
+            <el-skeleton animated>
+              <template #template>
+                <div class="skeleton-cover"></div>
+                <div class="info-box">
+                  <el-skeleton-item variant="h3" style="width: 70%" />
+                  <el-skeleton-item variant="text" style="width: 55%; margin-top: 10px" />
+                </div>
+              </template>
+            </el-skeleton>
+        </div>
+    </div>
+    <div v-else>
         <div class="grid" v-if="list.length > 0">
             <div class="card" v-for="item in list" :key="item.resourceId" @click="goDetail(item.resourceId)">
                 <img class="cover" :src="item.coverImg || placeholder" alt="cover" />
@@ -37,10 +62,20 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
+import { RESOURCE_TYPE_OPTIONS } from '../constants/dicts'
+import PageFilterBar from '../components/common/PageFilterBar.vue'
+import { clearRememberedState, loadRememberedState, saveRememberedState } from '../utils/viewState'
 
 const router = useRouter()
 const list = ref([])
-const category = ref('')
+const rememberedState = loadRememberedState('resource-list-filters', {
+  keyword: '',
+  category: '',
+  type: ''
+})
+const category = ref(rememberedState.category)
+const keyword = ref(rememberedState.keyword)
+const type = ref(rememberedState.type)
 const placeholder = 'https://via.placeholder.com/400x220?text=Heritage'
 const loading = ref(false)
 
@@ -48,9 +83,16 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 
-// Hardcoded or fetched categories. Since we paginate, we can't derive all categories from full list easily.
-// Better to hardcode or fetch distinct categories API.
-const categories = ref(['柳琴戏历史', '经典剧目', '名家唱段', '脸谱艺术', '服饰道具', '其他'])
+const categories = ref([])
+
+const fetchCategories = async () => {
+  try {
+    const res = await request.get('/resource-categories')
+    categories.value = (res.data || []).map(item => item.name)
+  } catch (e) {
+    categories.value = []
+  }
+}
 
 const fetchList = async () => {
   loading.value = true
@@ -61,6 +103,12 @@ const fetchList = async () => {
     }
     if (category.value) {
         params.category = category.value
+    }
+    if (keyword.value.trim()) {
+        params.keyword = keyword.value.trim()
+    }
+    if (type.value !== '' && type.value !== null && type.value !== undefined) {
+        params.type = type.value
     }
     
     const res = await request.get('/resources', { params })
@@ -77,7 +125,20 @@ const fetchList = async () => {
 
 const handleFilterChange = () => {
     currentPage.value = 1
+    saveRememberedState('resource-list-filters', {
+      keyword: keyword.value,
+      category: category.value,
+      type: type.value
+    })
     fetchList()
+}
+
+const resetFilters = () => {
+    keyword.value = ''
+    category.value = ''
+    type.value = ''
+    clearRememberedState('resource-list-filters')
+    handleFilterChange()
 }
 
 const handlePageChange = (val) => {
@@ -89,7 +150,10 @@ const goDetail = (id) => {
   router.push(`/resources/${id}`)
 }
 
-onMounted(fetchList)
+onMounted(() => {
+  fetchCategories()
+  fetchList()
+})
 </script>
 
 <style scoped>
@@ -98,9 +162,11 @@ onMounted(fetchList)
   max-width: 1200px;
   margin: 0 auto;
 }
-.filters {
-  margin-bottom: 20px;
-  text-align: right;
+.filter-item {
+  width: 180px;
+}
+.keyword-input {
+  width: 240px;
 }
 .grid {
   column-count: 4;
@@ -131,12 +197,20 @@ onMounted(fetchList)
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   transform: translateY(-4px);
 }
+.skeleton-card {
+  cursor: default;
+}
 .cover {
   width: 100%;
   display: block;
   min-height: 140px;
   object-fit: cover;
   background: #f5f7fa;
+}
+.skeleton-cover {
+  width: 100%;
+  min-height: 140px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #ebeef5 100%);
 }
 .info-box {
     padding: 12px;

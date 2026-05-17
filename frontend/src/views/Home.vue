@@ -1,73 +1,100 @@
 <template>
   <div class="home-page">
+    <div class="page-glow glow-left"></div>
+    <div class="page-glow glow-right"></div>
     <!-- Hero Section -->
     <div class="hero-section">
-      <el-carousel trigger="click" height="500px" :interval="5000" arrow="always" v-if="carouselItems.length > 0">
-        <el-carousel-item v-for="(item, index) in carouselItems" :key="index">
-          <div class="carousel-item-content" @click="handleCarouselClick(item)">
-            <img :src="item.imageUrl" alt="Carousel Image" class="carousel-image" />
-            <div class="carousel-caption" v-if="item.title">
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.subtitle }}</p>
+      <div class="hero-frame">
+        <el-carousel trigger="click" height="500px" :interval="5000" arrow="always" v-if="carouselItems.length > 0">
+          <el-carousel-item v-for="(item, index) in carouselItems" :key="index">
+            <div class="carousel-item-content" @click="handleCarouselClick(item)">
+              <img :src="item.imageUrl" alt="Carousel Image" class="carousel-image" />
             </div>
-          </div>
-        </el-carousel-item>
-      </el-carousel>
-      <!-- Fallback if no carousel items -->
-      <div v-else class="hero-section-placeholder" style="height: 500px; background: #eee; display: flex; align-items: center; justify-content: center;">
-        <p>暂无轮播图配置</p>
+          </el-carousel-item>
+        </el-carousel>
+        <!-- Fallback if no carousel items -->
+        <div v-else class="hero-section-placeholder">
+          <p>暂无轮播图配置</p>
+        </div>
       </div>
     </div>
 
-    <!-- Quick Navigation / Portal Entry Removed -->
-    
-    <!-- Section A: Inheritor Spotlight -->
-    <home-inheritors :items="featuredInheritors" />
-
-    <!-- Section B: Heritage Resources (Online Theater) -->
-    <home-resources :resources="featuredResources" />
-
-    <!-- Section C: Performance & Tickets -->
-    <home-events :events="upcomingEvents" />
-
-    <!-- Section D: Cultural Creative Mall -->
-    <home-products :products="hotProducts" style="margin-bottom: 80px;" />
-
-    <!-- Section E: News & Announcements -->
-    <home-news />
-
-    <!-- Latest Updates / Showcase (Highlights) -->
-    <div class="showcase-section" v-if="homeHighlights.length > 0">
-      <div class="section-header">
-        <span class="section-title-decoration"></span>
-        <h2 class="section-title">非遗风采</h2>
-        <span class="section-title-decoration"></span>
+    <div class="home-main">
+      <div class="showcase-section section-shell section-shell-highlight" v-if="homeHighlights.length > 0">
+        <div class="section-header">
+          <span class="section-title-decoration"></span>
+          <h2 class="section-title">非遗风采</h2>
+          <span class="section-title-decoration"></span>
+        </div>
+        <el-row :gutter="24">
+          <el-col :xs="24" :md="12" v-if="homeHighlights[0]">
+            <div class="showcase-big" :style="{ backgroundImage: `url(${homeHighlights[0].imageUrl})` }" @click="handleHighlightClick(homeHighlights[0])">
+              <div class="showcase-content">
+                <h3>{{ homeHighlights[0].title }}</h3>
+                <p>{{ homeHighlights[0].content }}</p>
+              </div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :md="12" v-if="homeHighlights[1]">
+            <div class="showcase-big" :style="{ backgroundImage: `url(${homeHighlights[1].imageUrl})` }" @click="handleHighlightClick(homeHighlights[1])">
+              <div class="showcase-content">
+                <h3>{{ homeHighlights[1].title }}</h3>
+                <p>{{ homeHighlights[1].content }}</p>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
       </div>
-      <el-row :gutter="20">
-        <el-col :span="12" v-if="homeHighlights[0]">
-          <div class="showcase-big" :style="{ backgroundImage: `url(${homeHighlights[0].imageUrl})` }" @click="handleHighlightClick(homeHighlights[0])">
-             <div class="showcase-content">
-               <h3>{{ homeHighlights[0].title }}</h3>
-               <p>{{ homeHighlights[0].content }}</p>
-             </div>
+
+      <div class="two-column-section section-shell">
+        <div class="column-main">
+          <home-events :events="upcomingEvents" />
+        </div>
+        <div class="column-side">
+          <home-news />
+        </div>
+      </div>
+
+      <div class="section-shell">
+        <home-resources />
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-block">
+          <div class="section-shell section-shell-compact">
+            <home-inheritors :items="featuredInheritors" />
           </div>
-        </el-col>
-        <el-col :span="12">
-          <el-row :gutter="20">
-            <el-col :span="24" style="margin-bottom: 20px;" v-if="homeHighlights[1]">
-              <div class="showcase-small" :style="{ backgroundImage: `url(${homeHighlights[1].imageUrl})` }" @click="handleHighlightClick(homeHighlights[1])">
-                 <h3>{{ homeHighlights[1].title }}</h3>
-              </div>
-            </el-col>
-            <el-col :span="24" v-if="homeHighlights[2]">
-              <div class="showcase-small" :style="{ backgroundImage: `url(${homeHighlights[2].imageUrl})` }" @click="handleHighlightClick(homeHighlights[2])">
-                 <h3>{{ homeHighlights[2].title }}</h3>
-              </div>
-            </el-col>
-          </el-row>
-        </el-col>
-      </el-row>
+        </div>
+        <div class="feature-block products-block">
+          <div class="section-shell section-shell-compact">
+            <home-products :products="hotProducts" />
+          </div>
+        </div>
+      </div>
     </div>
+
+    <el-dialog
+      v-model="detailVisible"
+      width="680px"
+      destroy-on-close
+      class="home-content-dialog"
+      :title="selectedContent.title || '内容详情'"
+    >
+      <div class="content-detail" v-if="selectedContent.title || selectedContent.content || selectedContent.imageUrl">
+        <el-image
+          v-if="selectedContent.imageUrl"
+          :src="selectedContent.imageUrl"
+          fit="cover"
+          class="content-detail-image"
+        />
+        <div class="content-detail-subtitle" v-if="selectedContent.subtitle">
+          {{ selectedContent.subtitle }}
+        </div>
+        <div class="content-detail-text">
+          {{ selectedContent.content || selectedContent.subtitle || '暂无详细内容' }}
+        </div>
+      </div>
+    </el-dialog>
 
     <!-- Floating Chat Button -->
     <div class="floating-chat" @click="$router.push('/chat')">
@@ -83,7 +110,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { VideoPlay, Goods, User, Setting, ChatDotRound } from '@element-plus/icons-vue'
+import { ChatDotRound } from '@element-plus/icons-vue'
 import HomeNews from '../components/home/HomeNews.vue'
 import HomeInheritors from '../components/home/HomeInheritors.vue'
 import HomeResources from '../components/home/HomeResources.vue'
@@ -96,63 +123,33 @@ import { storeToRefs } from 'pinia'
 const router = useRouter()
 const chatStore = useChatStore()
 const { totalUnreadCount } = storeToRefs(chatStore)
-const role = ref(0)
-const featuredResources = ref([])
 const featuredInheritors = ref([])
 const hotProducts = ref([])
 const upcomingEvents = ref([])
 const carouselItems = ref([])
 const homeHighlights = ref([])
+const detailVisible = ref(false)
+const selectedContent = ref({})
 
-onMounted(() => {
-  const userStr = localStorage.getItem('user')
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr)
-      role.value = user.role
-    } catch (e) {
-      // ignore
-    }
+const openContentDetail = (item) => {
+  selectedContent.value = {
+    title: item.title || '',
+    subtitle: item.subtitle || '',
+    content: item.content || '',
+    imageUrl: item.imageUrl || ''
   }
-})
+  detailVisible.value = true
+}
 
 const handleHighlightClick = (item) => {
-  const link = item.linkUrl
-  if (link && link.startsWith('http')) {
-    window.open(link, '_blank')
-  } else if (link) {
-    router.push(link)
-  } else if (item.id) {
-    // Navigate to detail page if no explicit link
-    router.push(`/content/${item.id}`)
-  }
+  openContentDetail(item)
 }
 
 const handleCarouselClick = (item) => {
-  const link = item.linkUrl
-  if (link && link.startsWith('http')) {
-    window.open(link, '_blank')
-  } else if (link) {
-    router.push(link)
-  } else if (item.id) {
-    // Navigate to detail page if no explicit link
-    router.push(`/content/${item.id}`)
-  }
+  openContentDetail(item)
 }
 
 const fillMocksIfEmpty = () => {
-  // Only fill business entities mocks if API fails, but for Home Content (Carousel/Highlight), we prefer empty or fallback if needed.
-  // Here we keep business entities mocks logic as is.
-  if (!featuredResources.value.length) {
-    featuredResources.value = [
-      { resourceId: 1, title: 'Liuqin Opera: The Soul of Linyi', coverImg: 'https://placeholder.co/400x300' },
-      { resourceId: 2, title: 'Classic Replay: 拉魂腔精选', coverImg: 'https://placeholder.co/400x300' },
-      { resourceId: 3, title: 'Teaching Video: 唱腔入门', coverImg: 'https://placeholder.co/400x300' },
-      { resourceId: 4, title: 'Script: 传统剧本合集', coverImg: 'https://placeholder.co/400x300' },
-      { resourceId: 5, title: 'Stage Highlights', coverImg: 'https://placeholder.co/400x300' },
-      { resourceId: 6, title: '幕后花絮', coverImg: 'https://placeholder.co/400x300' },
-    ]
-  }
   if (!featuredInheritors.value.length) {
     featuredInheritors.value = [
       { userId: 101, name: '张大师', avatar: 'https://placeholder.co/200x200', level: '国家级传承人' },
@@ -181,20 +178,18 @@ const fillMocksIfEmpty = () => {
 
 const fetchFeatured = async () => {
   try {
-    const [resRes, resInh, resProd, resEvt, resCarousel, resHigh] = await Promise.all([
-      request.get('/resources/featured', { params: { limit: 6 } }),
+    const [resInh, resProd, resEvt, resCarousel, resHigh] = await Promise.all([
       request.get('/inheritor/featured', { params: { limit: 4 } }),
-      request.get('/products/hot', { params: { limit: 5 } }),
+      request.get('/products/hot', { params: { limit: 6 } }),
       request.get('/ticket/upcoming', { params: { limit: 3 } }),
       request.get('/home/content', { params: { type: 'HOME_CAROUSEL' } }),
       request.get('/home/content', { params: { type: 'HIGHLIGHT' } }),
     ])
-    featuredResources.value = resRes.data || []
     featuredInheritors.value = resInh.data || []
     hotProducts.value = resProd.data || []
     upcomingEvents.value = resEvt.data || []
     carouselItems.value = resCarousel.data || []
-    homeHighlights.value = resHigh.data || []
+    homeHighlights.value = (resHigh.data || []).slice(0, 2)
   } catch (e) {
     // swallow errors and use mocks for business data
   } finally {
@@ -206,14 +201,14 @@ const fetchFeatured = async () => {
         {
           title: '临沂柳琴戏',
           subtitle: '国家级非物质文化遗产 | 听拉魂腔，品沂蒙情',
+          content: '临沂柳琴戏是国家级非物质文化遗产，承载着浓厚的地方文化记忆与戏曲艺术魅力。',
           imageUrl: 'https://images.unsplash.com/photo-1514533450685-4493e01d1fdc?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
-          linkUrl: '/resources'
         },
         {
           title: '非遗文创周边',
           subtitle: '传统与现代的碰撞 | 把文化带回家',
+          content: '精选柳琴戏主题文创与非遗周边，将传统美学与现代生活方式结合，让文化触手可及。',
           imageUrl: 'https://images.unsplash.com/photo-1593118845063-8896024107f7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
-          linkUrl: '/products'
         }
       ]
     }
@@ -228,11 +223,8 @@ const fetchFeatured = async () => {
         },
         {
           title: '名家名段欣赏',
+          content: '精选经典唱段与舞台影像，快速了解柳琴戏的声腔魅力与艺术特色。',
           imageUrl: 'https://images.unsplash.com/photo-1516280440614-6697288d5d38?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          title: '近期演出预告',
-          imageUrl: 'https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
         }
       ]
     }
@@ -244,7 +236,42 @@ onMounted(fetchFeatured)
 
 <style scoped>
 .home-page {
-  padding-bottom: 60px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(170, 29, 29, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(214, 174, 96, 0.14), transparent 24%),
+    linear-gradient(180deg, #fbf7f1 0%, #fff 260px);
+  padding-bottom: 72px;
+}
+
+.home-main {
+  width: min(1320px, calc(100% - 48px));
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.page-glow {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.glow-left {
+  left: -180px;
+  top: 220px;
+  background: rgba(170, 29, 29, 0.12);
+}
+
+.glow-right {
+  right: -160px;
+  top: 680px;
+  background: rgba(214, 174, 96, 0.18);
 }
 
 /* Floating Chat */
@@ -257,27 +284,57 @@ onMounted(fetchFeatured)
 }
 
 .chat-btn {
-  width: 50px;
-  height: 50px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background-color: #AA1D1D;
+  background: linear-gradient(135deg, #8f231e, #c94b3f 55%, #d6ae60);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 12px 28px rgba(80, 42, 30, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   transition: all 0.3s;
 }
 
 .chat-btn:hover {
-  transform: scale(1.1);
-  background-color: #c92e2e;
+  transform: translateY(-3px) scale(1.05);
 }
 
 /* Hero Carousel */
 .hero-section {
   position: relative;
-  margin-bottom: 40px;
+  padding: 24px 24px 0;
+  margin-bottom: 30px;
+}
+
+.hero-frame {
+  overflow: hidden;
+  border-radius: 30px;
+  box-shadow: 0 24px 60px rgba(48, 30, 23, 0.18);
+  border: 1px solid rgba(255, 248, 240, 0.85);
+  position: relative;
+  background: #fff;
+}
+
+.hero-frame::before {
+  content: '';
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 22px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-frame::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 160px;
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0), rgba(10, 10, 10, 0.24));
+  pointer-events: none;
+  z-index: 1;
 }
 .carousel-item-content {
   width: 100%;
@@ -285,100 +342,259 @@ onMounted(fetchFeatured)
   position: relative;
   cursor: pointer;
 }
+
+.hero-frame :deep(.el-carousel__button) {
+  width: 28px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.hero-frame :deep(.el-carousel__indicator.is-active .el-carousel__button) {
+  background: #fff;
+}
+
+.hero-frame :deep(.el-carousel__arrow) {
+  background: rgba(44, 28, 22, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  backdrop-filter: blur(8px);
+}
+
+.hero-frame :deep(.el-carousel__arrow:hover) {
+  background: rgba(170, 29, 29, 0.78);
+}
+
 .carousel-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.carousel-caption {
-  position: absolute;
-  bottom: 50px;
-  left: 50px;
-  color: #fff;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-  background: rgba(0,0,0,0.3);
-  padding: 20px;
-  border-radius: 8px;
+.hero-section-placeholder {
+  height: 500px;
+  background: linear-gradient(135deg, #efe6d8, #f8f4ed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8b6b56;
+  font-size: 16px;
 }
-.carousel-caption h3 {
-  font-size: 32px;
-  margin-bottom: 10px;
+
+.content-detail-image {
+  width: 100%;
+  height: 260px;
+  border-radius: 14px;
+  margin-bottom: 18px;
 }
-.carousel-caption p {
-  font-size: 18px;
+
+.content-detail-subtitle {
+  margin-bottom: 12px;
+  color: #8b6b56;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.content-detail-text {
+  color: #333;
+  font-size: 15px;
+  line-height: 1.9;
+  white-space: pre-wrap;
 }
 
 /* Section Styles */
 .section-header {
-  text-align: center;
-  margin-bottom: 40px;
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: 16px;
+  margin-bottom: 28px;
 }
 .section-title {
+  margin: 0;
   font-size: 32px;
-  color: #333;
+  color: #2f241f;
   font-weight: bold;
   font-family: 'STKaiti', serif;
+  letter-spacing: 3px;
 }
 .section-title-decoration {
   display: inline-block;
-  width: 60px;
+  width: 72px;
   height: 2px;
-  background-color: #AA1D1D;
+  background: linear-gradient(90deg, rgba(170, 29, 29, 0), #AA1D1D, rgba(214, 174, 96, 0.9), rgba(170, 29, 29, 0));
 }
 
 /* Showcase Section */
 .showcase-section {
-  margin-bottom: 60px;
+  margin-bottom: 36px;
 }
 .showcase-big, .showcase-small {
   background-size: cover;
   background-position: center;
-  border-radius: 8px;
+  border-radius: 24px;
   overflow: hidden;
   position: relative;
   cursor: pointer;
+  box-shadow: 0 14px 30px rgba(40, 24, 18, 0.10);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 .showcase-big {
-  height: 420px;
+  min-height: 420px;
 }
-.showcase-small {
-  height: 200px;
+.showcase-big::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(20, 20, 20, 0.04), rgba(20, 20, 20, 0.76)),
+    linear-gradient(135deg, rgba(170, 29, 29, 0.12), rgba(214, 174, 96, 0.08));
 }
 .showcase-content {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  z-index: 1;
+  bottom: 32px;
+  left: 32px;
+  right: 32px;
   color: #fff;
-  padding: 20px;
 }
-.showcase-small h3 {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(transparent, rgba(0,0,0,0.8));
-  color: #fff;
-  padding: 10px 15px;
+.showcase-content h3 {
+  margin: 0 0 12px;
+  font-size: 32px;
+  letter-spacing: 1px;
+}
+.showcase-content p {
   margin: 0;
-  font-size: 16px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.88);
+  min-height: 48px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.showcase-big:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 22px 38px rgba(40, 24, 18, 0.16);
+}
+
+.section-shell {
+  position: relative;
+  padding: 24px 26px 20px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 249, 243, 0.96));
+  border: 1px solid #f0e1d1;
+  box-shadow: 0 16px 34px rgba(54, 33, 24, 0.07);
+  overflow: hidden;
+}
+
+.section-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(170, 29, 29, 0), rgba(170, 29, 29, 0.22), rgba(214, 174, 96, 0.22), rgba(170, 29, 29, 0));
+}
+
+.section-shell::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(214, 174, 96, 0.10), transparent 72%);
+  pointer-events: none;
+}
+
+.section-shell-highlight {
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(255, 246, 238, 0.95));
+}
+
+.section-shell-compact {
+  height: 100%;
+}
+.two-column-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+  gap: 24px;
+  margin-bottom: 36px;
+  align-items: start;
+}
+
+.column-main,
+.column-side,
+.feature-block {
+  min-width: 0;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.products-block {
+  margin-bottom: 80px;
 }
 
 /* Responsive */
-@media (max-width: 768px) {
-  .carousel-title {
-    font-size: 32px;
+@media (max-width: 992px) {
+  .two-column-section,
+  .feature-grid {
+    display: block;
   }
-  .header-content {
-    flex-direction: column;
-    height: auto;
-    padding: 10px;
+
+  .column-side,
+  .feature-block {
+    margin-top: 24px;
+  }
+
+  .showcase-big {
+    min-height: 320px;
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 12px 12px 0;
+  }
+
+  .home-main {
+    width: calc(100% - 24px);
+  }
+
+  .showcase-big {
+    min-height: 300px;
+  }
+
+  .showcase-content {
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+  }
+
+  .showcase-content h3 {
+    font-size: 24px;
+  }
+
+  .section-title {
+    font-size: 26px;
+    letter-spacing: 2px;
+  }
+
+  .section-title-decoration {
+    width: 48px;
+  }
+
+  .section-shell {
+    padding: 18px 16px 14px;
+    border-radius: 20px;
   }
 }
 </style>

@@ -11,12 +11,12 @@
           <el-table-column prop="sortOrder" label="排序" width="80" sortable />
           <el-table-column prop="title" label="标题" />
           <el-table-column prop="subtitle" label="副标题" show-overflow-tooltip />
+          <el-table-column prop="content" label="展示内容" show-overflow-tooltip />
           <el-table-column label="图片" width="120">
             <template #default="{ row }">
               <el-image :src="row.imageUrl" :preview-src-list="[row.imageUrl]" style="width: 100px; height: 50px" fit="cover" />
             </template>
           </el-table-column>
-          <el-table-column prop="linkUrl" label="跳转链接" show-overflow-tooltip />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="row.status === 1 ? 'success' : 'info'">
@@ -37,12 +37,12 @@
         <el-table :data="tableData" border style="width: 100%">
           <el-table-column prop="sortOrder" label="排序" width="80" sortable />
           <el-table-column prop="title" label="资讯标题" />
+          <el-table-column prop="content" label="资讯内容" show-overflow-tooltip />
           <el-table-column label="封面图" width="120">
             <template #default="{ row }">
               <el-image :src="row.imageUrl" :preview-src-list="[row.imageUrl]" style="width: 100px; height: 50px" fit="cover" />
             </template>
           </el-table-column>
-          <el-table-column prop="linkUrl" label="链接" show-overflow-tooltip />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '显示' : '隐藏' }}</el-tag>
@@ -62,7 +62,6 @@
           <el-table-column prop="sortOrder" label="排序" width="80" sortable />
           <el-table-column prop="title" label="公告标题" />
           <el-table-column prop="content" label="内容详情" show-overflow-tooltip />
-          <el-table-column prop="linkUrl" label="链接" show-overflow-tooltip />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '显示' : '隐藏' }}</el-tag>
@@ -113,9 +112,14 @@
             <el-input v-model="form.subtitle" placeholder="请输入副标题" />
           </el-form-item>
           
-          <el-form-item label="内容/描述" v-if="['NOTICE', 'HIGHLIGHT', 'NEWS_CAROUSEL'].includes(activeTab)">
-          <el-input v-model="form.content" type="textarea" :rows="6" placeholder="请输入内容详情（资讯和公告将显示在详情页）" />
-        </el-form-item>
+          <el-form-item label="内容/描述">
+            <el-input
+              v-model="form.content"
+              type="textarea"
+              :rows="6"
+              placeholder="请输入首页点击后弹窗展示的内容"
+            />
+          </el-form-item>
           
           <el-form-item label="图片" v-if="activeTab !== 'NOTICE'">
            <el-upload
@@ -128,10 +132,6 @@
              <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
            </el-upload>
            <div class="el-upload__tip">只能上传jpg/png文件，且不超过2MB</div>
-          </el-form-item>
-          
-          <el-form-item label="跳转链接" v-if="activeTab !== 'HIGHLIGHT'">
-            <el-input v-model="form.linkUrl" placeholder="点击跳转的URL" />
           </el-form-item>
           
           <el-form-item label="排序">
@@ -238,6 +238,8 @@ const handleSubmit = async () => {
     ElMessage.warning('标题不能为空')
     return
   }
+
+  form.linkUrl = ''
   
   try {
     const method = form.id ? 'put' : 'post'

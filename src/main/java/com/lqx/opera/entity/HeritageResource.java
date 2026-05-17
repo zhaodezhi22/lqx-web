@@ -25,6 +25,7 @@ public class HeritageResource implements Serializable {
     private String description;
     private Integer viewCount;
     private Integer status; // 0-Pending, 1-Active, 2-Rejected
+    private String auditRemark;
     private LocalDateTime createdTime;
 }
 

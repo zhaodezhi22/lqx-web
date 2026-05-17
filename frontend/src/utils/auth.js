@@ -6,6 +6,7 @@ const AUTH_EXPIRED_EVENT = 'lqx-auth-expired'
 let expiryTimer = null
 let handlingAuthExpired = false
 let messageShown = false
+let handlingForbidden = false
 
 const clearExpiryTimer = () => {
   if (expiryTimer) {
@@ -90,3 +91,22 @@ export const handleAuthExpired = (message = '登录状态已过期，请重新�
 }
 
 export const getAuthExpiredEventName = () => AUTH_EXPIRED_EVENT
+
+export const handleForbidden = (message = '当前账号无权限访问该页面或执行该操作。') => {
+  if (handlingForbidden) return
+  handlingForbidden = true
+
+  const currentRoute = router.currentRoute.value
+  const isForbiddenPage = currentRoute?.name === 'Forbidden'
+
+  if (!isForbiddenPage) {
+    router.replace({
+      name: 'Forbidden',
+      query: { message }
+    })
+  }
+
+  window.setTimeout(() => {
+    handlingForbidden = false
+  }, 300)
+}

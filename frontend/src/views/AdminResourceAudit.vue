@@ -1,110 +1,36 @@
 <template>
   <div class="page">
     <el-card>
-      <div class="header">
-        <h2>资源库管理</h2>
-        <div class="filter">
-           <el-input v-model="keyword" placeholder="搜索资源标题" style="width: 200px; margin-right: 10px" />
-           <el-button type="primary" @click="fetchList">搜索</el-button>
-        </div>
+      <div class="redirect-box">
+        <h2>资源审核已迁移</h2>
+        <p>当前页面已收口到统一审核中心，正在为你跳转到资源审核视图。</p>
+        <el-button type="primary" @click="goToAuditCenter">立即前往</el-button>
       </div>
-      
-      <el-table :data="list" style="width: 100%" v-loading="loading">
-        <el-table-column prop="resourceId" label="ID" width="80" />
-        <el-table-column prop="title" label="标题" />
-        <el-table-column prop="category" label="分类" width="120" />
-        <el-table-column prop="type" label="类型" width="100">
-          <template #default="{ row }">
-            {{ getTypeLabel(row.type) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="uploaderId" label="上传者ID" width="100" />
-        <el-table-column prop="createdTime" label="上传时间" width="180" />
-        <el-table-column label="操作" width="200">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="preview(row)">预览</el-button>
-            <el-button link type="success" @click="approve(row)">通过</el-button>
-            <el-button link type="danger" @click="remove(row)">驳回</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
     </el-card>
-
-    <el-dialog v-model="previewVisible" title="资源预览" width="50%">
-      <div v-if="currentResource">
-        <h3>{{ currentResource.title }}</h3>
-        <p>{{ currentResource.description }}</p>
-        <img v-if="currentResource.coverImg" :src="currentResource.coverImg" style="max-width: 100%" />
-        <p>资源链接: {{ currentResource.fileUrl }}</p>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import request from '../utils/request'
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
-const list = ref([])
-const loading = ref(false)
-const keyword = ref('')
-const previewVisible = ref(false)
-const currentResource = ref(null)
+const router = useRouter()
 
-const getTypeLabel = (type) => {
-  const map = { 1: '视频', 2: '音频', 3: '图文', 4: '剧本' }
-  return map[type] || '未知'
+const goToAuditCenter = () => {
+  router.replace({ path: '/admin/audit-center', query: { type: 'RESOURCE', status: '0' } })
 }
 
-const fetchList = async () => {
-  loading.value = true
-  try {
-    const res = await request.get('/admin/resources', {
-      params: { 
-        status: 0,
-        keyword: keyword.value 
-      }
-    })
-    list.value = res.data?.records || res.data || []
-  } catch (e) {
-    ElMessage.error('加载失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const preview = (row) => {
-  currentResource.value = row
-  previewVisible.value = true
-}
-
-const approve = async (row) => {
-  await ElMessageBox.confirm('确定通过该资源？', '提示')
-  try {
-    await request.put(`/admin/resources/${row.resourceId}/audit`, { status: 1 })
-    ElMessage.success('已通过')
-    fetchList()
-  } catch (e) {
-    ElMessage.error('操作失败')
-  }
-}
-
-const remove = async (row) => {
-  await ElMessageBox.confirm('确定驳回该资源？', '提示')
-  try {
-    await request.put(`/admin/resources/${row.resourceId}/audit`, { status: 2 })
-    ElMessage.success('已驳回')
-    fetchList()
-  } catch (e) {
-    ElMessage.error('操作失败')
-  }
-}
-
-onMounted(fetchList)
+onMounted(goToAuditCenter)
 </script>
 
 <style scoped>
 .page { padding: 16px; }
-.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.redirect-box {
+  padding: 24px 12px;
+  text-align: center;
+}
+.redirect-box p {
+  margin: 12px 0 20px;
+  color: #666;
+}
 </style>

@@ -10,14 +10,21 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final JwtAuthInterceptor jwtAuthInterceptor;
+    private final AdminOperationLogInterceptor adminOperationLogInterceptor;
 
-    public WebMvcConfig(JwtAuthInterceptor jwtAuthInterceptor) {
+    public WebMvcConfig(JwtAuthInterceptor jwtAuthInterceptor,
+                        AdminOperationLogInterceptor adminOperationLogInterceptor) {
         this.jwtAuthInterceptor = jwtAuthInterceptor;
+        this.adminOperationLogInterceptor = adminOperationLogInterceptor;
     }
 
     @Override
     public void addInterceptors(@NonNull InterceptorRegistry registry) {
         registry.addInterceptor(jwtAuthInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+
+        registry.addInterceptor(adminOperationLogInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/auth/login", "/api/auth/register");
     }

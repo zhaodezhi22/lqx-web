@@ -50,7 +50,7 @@
                     </template>
                   </el-upload>
                 </el-form-item>
-                <el-form-item label="昵称">
+                <el-form-item label="账号">
                   <el-input v-model="user.username" disabled />
                 </el-form-item>
                 <el-form-item label="真实姓名">
@@ -58,6 +58,9 @@
                 </el-form-item>
                 <el-form-item label="联系电话">
                   <el-input v-model="user.phone" />
+                </el-form-item>
+                <el-form-item label="邮箱">
+                  <el-input v-model="user.email" placeholder="请输入邮箱" />
                 </el-form-item>
                 <el-form-item>
                   <el-button type="primary" @click="saveProfile">保存修改</el-button>
@@ -1132,6 +1135,7 @@ const saveProfile = async () => {
     await request.put(`/users/${user.userId}`, {
       realName: user.realName,
       phone: user.phone,
+      email: user.email,
       avatar: user.avatar
     })
     ElMessage.success('保存成功')

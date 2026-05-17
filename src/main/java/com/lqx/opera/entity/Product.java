@@ -21,8 +21,8 @@ public class Product implements Serializable {
     private BigDecimal price;
     private Integer stock;
     private Integer status;
+    private String auditRemark;
     private String detail;
     private Long sellerId;
     private LocalDateTime createdTime;
 }
-

@@ -1,25 +1,46 @@
 <template>
-  <div class="page" v-if="detail">
-    <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
-    <h2>{{ detail.title }}</h2>
-    <div class="publisher-info" v-if="detail.uploaderId && detail.uploaderName" @click="goProfile(detail.uploaderId)">
-      <el-avatar :size="32" :src="detail.uploaderAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
-      <span class="name">{{ detail.uploaderName }}</span>
-      <el-tag size="small" v-if="detail.uploaderRole === 1">传承人</el-tag>
+  <div class="page">
+    <div v-if="loading" class="detail-skeleton">
+      <el-button disabled style="margin-bottom: 20px">返回</el-button>
+      <el-skeleton animated>
+        <template #template>
+          <el-skeleton-item variant="h1" style="width: 38%; height: 32px;" />
+          <div style="margin: 16px 0 12px; display: flex; align-items: center; gap: 10px;">
+            <el-skeleton-item variant="circle" style="width: 32px; height: 32px;" />
+            <el-skeleton-item variant="text" style="width: 120px;" />
+          </div>
+          <el-skeleton-item variant="text" style="width: 180px; margin-bottom: 16px;" />
+          <div class="media-skeleton"></div>
+          <el-skeleton-item variant="text" style="width: 95%; margin-top: 20px;" />
+          <el-skeleton-item variant="text" style="width: 90%; margin-top: 12px;" />
+          <el-skeleton-item variant="text" style="width: 70%; margin-top: 12px;" />
+        </template>
+      </el-skeleton>
     </div>
-    <div class="publisher-info-disabled" v-else-if="detail.uploaderId">
-       <el-avatar :size="32" src="https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png" />
-       <span class="name">用户已注销</span>
+    <div v-else-if="detail">
+      <el-button @click="$router.back()" style="margin-bottom: 20px">返回</el-button>
+      <h2>{{ detail.title }}</h2>
+      <div class="publisher-info" v-if="detail.uploaderId && detail.uploaderName" @click="goProfile(detail.uploaderId)">
+        <el-avatar :size="32" :src="detail.uploaderAvatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
+        <span class="name">{{ detail.uploaderName }}</span>
+        <el-tag size="small" v-if="detail.uploaderRole === 1">传承人</el-tag>
+      </div>
+      <div class="publisher-info-disabled" v-else-if="detail.uploaderId">
+         <el-avatar :size="32" src="https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png" />
+         <span class="name">用户已注销</span>
+      </div>
+      <div class="meta">{{ detail.category || '未分类' }} · 浏览 {{ detail.viewCount || 0 }}</div>
+      <div class="player">
+        <video v-if="isVideo" controls :src="detail.fileUrl" style="width: 100%; max-width: 900px" />
+        <audio v-else-if="isAudio" controls :src="detail.fileUrl" style="width: 100%; max-width: 600px" />
+        <img v-else class="image" :src="detail.coverImg || placeholder" alt="cover" />
+      </div>
+      <div class="desc" v-html="detail.description || '暂无简介'"></div>
     </div>
-    <div class="meta">{{ detail.category || '未分类' }} · 浏览 {{ detail.viewCount || 0 }}</div>
-    <div class="player">
-      <video v-if="isVideo" controls :src="detail.fileUrl" style="width: 100%; max-width: 900px" />
-      <audio v-else-if="isAudio" controls :src="detail.fileUrl" style="width: 100%; max-width: 600px" />
-      <img v-else class="image" :src="detail.coverImg || placeholder" alt="cover" />
-    </div>
-    <div class="desc" v-html="detail.description || '暂无简介'"></div>
+    <el-empty v-else description="未找到资源详情">
+      <el-button type="primary" @click="$router.push('/resources')">返回资源列表</el-button>
+    </el-empty>
   </div>
-  <div v-else class="page">加载中...</div>
 </template>
 
 <script setup>
@@ -27,10 +48,12 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
+import { getCurrentUser } from '../utils/permission'
 
 const route = useRoute()
 const router = useRouter()
 const detail = ref(null)
+const loading = ref(false)
 const placeholder = 'https://via.placeholder.com/900x500?text=Heritage'
 const viewTimer = ref(null)
 
@@ -38,11 +61,15 @@ const isVideo = computed(() => detail.value?.type === 1)
 const isAudio = computed(() => detail.value?.type === 2)
 
 const fetchDetail = async () => {
+  loading.value = true
   try {
     const res = await request.get(`/resources/${route.params.id}`)
     detail.value = res.data
   } catch (e) {
     ElMessage.error('加载详情失败')
+    detail.value = null
+  } finally {
+    loading.value = false
   }
 }
 
@@ -52,11 +79,7 @@ const goProfile = (userId) => {
 
 const startViewTimer = () => {
   if (viewTimer.value) clearTimeout(viewTimer.value)
-  // Check if user is logged in
-  const userStr = localStorage.getItem('user')
-  if (!userStr) return
-  
-  const user = JSON.parse(userStr)
+  const user = getCurrentUser()
   if (!user.userId) return
 
   viewTimer.value = setTimeout(async () => {
@@ -126,6 +149,13 @@ onMounted(fetchDetail)
 }
 .player {
   margin-bottom: 16px;
+}
+.media-skeleton {
+  width: 100%;
+  max-width: 900px;
+  height: 360px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #ebeef5 100%);
+  border-radius: 10px;
 }
 .image {
   max-width: 900px;

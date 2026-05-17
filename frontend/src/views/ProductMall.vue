@@ -1,13 +1,46 @@
 <template>
   <div class="page">
     <div class="header">
-      <h2>文创商城</h2>
+      <div>
+        <h2>文创商城</h2>
+        <PageFilterBar>
+          <el-input
+            v-model="keyword"
+            placeholder="搜索商品名称"
+            clearable
+            class="filter-item keyword-input"
+            @keyup.enter="fetchList"
+          />
+          <el-select v-model="sort" class="filter-item" @change="fetchList">
+            <el-option label="最新上架" value="latest" />
+            <el-option label="价格从低到高" value="priceAsc" />
+            <el-option label="价格从高到低" value="priceDesc" />
+          </el-select>
+          <el-button @click="resetFilters">重置</el-button>
+        </PageFilterBar>
+      </div>
       <el-button type="primary" :icon="ShoppingCart" @click="drawer = true">
         购物车 ({{ cart.count }})
       </el-button>
     </div>
+    <el-row v-if="loading" :gutter="16">
+      <el-col v-for="item in 8" :key="`skeleton-${item}`" :xs="24" :sm="12" :md="8" :lg="6">
+        <el-card class="product-card skeleton-card" :body-style="{ padding: '0px' }">
+          <el-skeleton animated>
+            <template #template>
+              <div class="skeleton-cover"></div>
+              <div class="skeleton-body">
+                <el-skeleton-item variant="h3" style="width: 70%" />
+                <el-skeleton-item variant="text" style="width: 40%; margin-top: 12px" />
+                <el-skeleton-item variant="button" style="width: 100%; margin-top: 18px" />
+              </div>
+            </template>
+          </el-skeleton>
+        </el-card>
+      </el-col>
+    </el-row>
     <el-row :gutter="16">
-      <el-col v-for="item in products" :key="item.productId" :xs="24" :sm="12" :md="8" :lg="6">
+      <el-col v-for="item in products" v-show="!loading" :key="item.productId" :xs="24" :sm="12" :md="8" :lg="6">
         <el-card class="product-card" shadow="hover" :body-style="{ padding: '0px' }">
           <div class="card-content" @click="openDetail(item)">
             <img class="cover" :src="item.mainImage || placeholder" alt="cover" />
@@ -30,6 +63,7 @@
         </el-card>
       </el-col>
     </el-row>
+    <el-empty v-if="!loading && products.length === 0" description="暂无符合条件的商品" />
 
     <ProductDetailModal v-model:visible="detailVisible" :product-id="currentProductId" />
 
@@ -139,6 +173,9 @@ import { ShoppingCart, Delete } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { useCartStore } from '../stores/cart'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
+import PageFilterBar from '../components/common/PageFilterBar.vue'
+import { clearRememberedState, loadRememberedState, saveRememberedState } from '../utils/viewState'
+import { getCurrentUser } from '../utils/permission'
 
 const router = useRouter()
 const route = useRoute()
@@ -151,9 +188,16 @@ const checkoutStep = ref(1)
 const myAddresses = ref([])
 const selectedAddressId = ref(null)
 const submitting = ref(false)
+const loading = ref(false)
 
 const detailVisible = ref(false)
 const currentProductId = ref(null)
+const rememberedState = loadRememberedState('product-mall-filters', {
+  keyword: '',
+  sort: 'latest'
+})
+const keyword = ref(rememberedState.keyword)
+const sort = ref(rememberedState.sort)
 
 
 // Points Logic
@@ -186,15 +230,12 @@ const finalPrice = computed(() => {
 })
 
 const fetchUserPoints = async () => {
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
+    const currentUser = getCurrentUser()
+    if (currentUser?.userId) {
         try {
-            const u = JSON.parse(userStr)
-            if (u.userId) {
-                const res = await request.get('/points/info', { params: { userId: u.userId } })
-                if (res.code === 200) {
-                    userPoints.value = res.data.currentPoints || 0
-                }
+            const res = await request.get('/points/info', { params: { userId: currentUser.userId } })
+            if (res.code === 200) {
+                userPoints.value = res.data.currentPoints || 0
             }
         } catch(e) {}
     }
@@ -208,12 +249,29 @@ watch(drawer, (val) => {
 })
 
 const fetchList = async () => {
+  loading.value = true
   try {
-    const res = await request.get('/products', { params: { status: 1 } })
+    const params = { status: 1 }
+    if (keyword.value.trim()) params.keyword = keyword.value.trim()
+    if (sort.value && sort.value !== 'latest') params.sort = sort.value
+    saveRememberedState('product-mall-filters', {
+      keyword: keyword.value,
+      sort: sort.value
+    })
+    const res = await request.get('/products', { params })
     products.value = res.data || []
   } catch (e) {
     ElMessage.error('加载商品失败')
+  } finally {
+    loading.value = false
   }
+}
+
+const resetFilters = () => {
+  keyword.value = ''
+  sort.value = 'latest'
+  clearRememberedState('product-mall-filters')
+  fetchList()
 }
 
 const openDetail = (item) => {
@@ -332,9 +390,16 @@ onMounted(async () => {
 }
 .header {
   display: flex;
+  gap: 16px;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+.filter-item {
+  width: 180px;
+}
+.keyword-input {
+  width: 240px;
 }
 .product-card {
   margin-bottom: 16px;
@@ -352,6 +417,16 @@ onMounted(async () => {
   height: 180px;
   object-fit: cover;
   display: block;
+}
+.skeleton-card {
+  overflow: hidden;
+}
+.skeleton-cover {
+  height: 180px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #ebeef5 100%);
+}
+.skeleton-body {
+  padding: 16px;
 }
 .info {
   padding: 14px;
