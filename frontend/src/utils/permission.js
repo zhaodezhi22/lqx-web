@@ -16,6 +16,6 @@ export const hasRole = (role) => getCurrentRole() === role
 
 export const hasAnyRole = (roles = []) => roles.includes(getCurrentRole())
 
-export const isAdminRole = () => getCurrentRole() >= 2
+export const isAdminRole = () => hasAnyRole([2, 3])
 
 export const isRootRole = () => getCurrentRole() === 3

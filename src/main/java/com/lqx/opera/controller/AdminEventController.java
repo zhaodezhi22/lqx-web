@@ -6,6 +6,7 @@ import com.lqx.opera.entity.PerformanceEvent;
 import com.lqx.opera.service.PerformanceEventService;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @RestController
@@ -36,6 +37,21 @@ public class AdminEventController {
 
         event.setStatus(3); // 3-Offline
         return performanceEventService.updateById(event) ? Result.success(true) : Result.fail("下架失败");
+    }
+
+    @PostMapping("/online/{id}")
+    @RequireRole({2, 3})
+    public Result<Boolean> online(@PathVariable Long id) {
+        PerformanceEvent event = performanceEventService.getById(id);
+        if (event == null) return Result.fail("演出不存在");
+        if (event.getShowTime() != null && event.getShowTime().isBefore(LocalDateTime.now())) {
+            event.setStatus(3);
+            performanceEventService.updateById(event);
+            return Result.fail("演出时间已到，系统已自动归档，可在往期演出中查看");
+        }
+
+        event.setStatus(1); // 1-On Sale
+        return performanceEventService.updateById(event) ? Result.success(true) : Result.fail("上架失败");
     }
 
     @lombok.Data

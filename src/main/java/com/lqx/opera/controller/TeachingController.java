@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lqx.opera.common.Result;
 import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.entity.ApprenticeTask;
-import com.lqx.opera.entity.ApprenticeshipApply;
 import com.lqx.opera.entity.CommunityComment;
 import com.lqx.opera.entity.SysUser;
 import com.lqx.opera.service.ApprenticeshipService;
@@ -58,19 +57,11 @@ public class TeachingController {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) return Result.fail(401, "未登录");
 
-        // 查询状态为1 (已通过) 的申请记录
-        List<ApprenticeshipApply> list = apprenticeshipService.list(new LambdaQueryWrapper<ApprenticeshipApply>()
-                .eq(ApprenticeshipApply::getMasterId, userId)
-                .eq(ApprenticeshipApply::getStatus, 1));
-
-        List<ApprenticeDTO> dtos = list.stream().map(apply -> {
+        List<ApprenticeDTO> dtos = apprenticeshipService.getMyApprentices(userId).stream().map(item -> {
             ApprenticeDTO dto = new ApprenticeDTO();
-            dto.setStudentId(apply.getStudentId());
-            SysUser student = sysUserService.getById(apply.getStudentId());
-            if (student != null) {
-                dto.setName(student.getRealName() != null ? student.getRealName() : student.getUsername());
-                dto.setAvatar(student.getAvatar());
-            }
+            dto.setStudentId(item.getStudentId());
+            dto.setName(item.getRealName() != null ? item.getRealName() : item.getUsername());
+            dto.setAvatar(item.getAvatar());
             return dto;
         }).collect(Collectors.toList());
 

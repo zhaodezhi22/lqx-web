@@ -49,9 +49,12 @@
           
           <el-form-item label="流派">
             <el-select v-model="genreSelect" placeholder="请选择流派" @change="handleGenreChange">
-              <el-option label="徐派" value="徐派" />
-              <el-option label="王派" value="王派" />
-              <el-option label="李派" value="李派" />
+              <el-option
+                v-for="item in genreOptions"
+                :key="item"
+                :label="item"
+                :value="item"
+              />
               <el-option label="其他" value="其他" />
             </el-select>
             <el-input 
@@ -117,6 +120,7 @@ import request from '../utils/request'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+const defaultGenres = ['徐派', '王派', '李派']
 const form = reactive({
   level: '',
   genre: '',
@@ -126,6 +130,7 @@ const form = reactive({
   awards: '',
 })
 
+const genreOptions = ref([...defaultGenres])
 const genreSelect = ref('')
 const masterSelectValue = ref(null)
 const masterOptions = ref([])
@@ -140,6 +145,8 @@ const applicationStatus = ref(null) // null=none, 0=pending, 1=approved, 2=rejec
 const auditRemark = ref('')
 
 onMounted(async () => {
+  await loadGenreOptions()
+
   // Check application status first
   try {
     const res = await request.get('/inheritor/my-status')
@@ -157,7 +164,7 @@ onMounted(async () => {
              form.awards = res.data.awards
              
              // Handle Genre Select
-             if (['徐派', '王派', '李派'].includes(res.data.genre)) {
+             if (genreOptions.value.includes(res.data.genre)) {
                  genreSelect.value = res.data.genre
              } else {
                  genreSelect.value = '其他'
@@ -181,6 +188,24 @@ onMounted(async () => {
       checkMyMaster()
   }
 })
+
+const loadGenreOptions = async () => {
+  try {
+    const res = await request.get('/home/content', {
+      params: { type: 'INHERITOR_GENRE' }
+    })
+    if (res.code === 200 && Array.isArray(res.data) && res.data.length > 0) {
+      genreOptions.value = res.data
+        .map(item => item.title?.trim())
+        .filter(Boolean)
+    } else {
+      genreOptions.value = [...defaultGenres]
+    }
+  } catch (e) {
+    genreOptions.value = [...defaultGenres]
+    console.error('Load genre options failed', e)
+  }
+}
 
 const checkMyMaster = async () => {
   try {

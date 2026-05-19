@@ -2,7 +2,7 @@
   <div class="admin-home-content">
     <div class="page-header">
       <h2>首页内容管理</h2>
-      <el-button type="primary" @click="openCreateDialog">新增内容</el-button>
+      <el-button type="primary" @click="openCreateDialog">{{ createButtonText }}</el-button>
     </div>
 
     <el-tabs v-model="activeTab" @tab-change="fetchData">
@@ -99,29 +99,50 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
+
+      <el-tab-pane label="传承流派" name="INHERITOR_GENRE">
+        <el-table :data="tableData" border style="width: 100%">
+          <el-table-column prop="sortOrder" label="排序" width="80" sortable />
+          <el-table-column prop="title" label="流派名称" />
+          <el-table-column prop="content" label="备注" show-overflow-tooltip />
+          <el-table-column label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 1 ? 'success' : 'info'">
+                {{ row.status === 1 ? '启用' : '停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
+              <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
 
       <!-- Edit/Create Dialog -->
       <el-dialog v-model="dialogVisible" :title="form.id ? '编辑内容' : '新增内容'" width="500px">
         <el-form :model="form" label-width="100px">
-          <el-form-item label="标题" required>
-            <el-input v-model="form.title" placeholder="请输入标题" />
+          <el-form-item :label="titleLabel" required>
+            <el-input v-model="form.title" :placeholder="titlePlaceholder" />
           </el-form-item>
           
           <el-form-item label="副标题" v-if="activeTab === 'HOME_CAROUSEL'">
             <el-input v-model="form.subtitle" placeholder="请输入副标题" />
           </el-form-item>
           
-          <el-form-item label="内容/描述">
+          <el-form-item :label="contentLabel" v-if="showContentField">
             <el-input
               v-model="form.content"
               type="textarea"
               :rows="6"
-              placeholder="请输入首页点击后弹窗展示的内容"
+              :placeholder="contentPlaceholder"
             />
           </el-form-item>
           
-          <el-form-item label="图片" v-if="activeTab !== 'NOTICE'">
+          <el-form-item label="图片" v-if="showImageField">
            <el-upload
              class="avatar-uploader"
              action="#"
@@ -153,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import request from '../utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -171,6 +192,20 @@ const form = reactive({
   linkUrl: '',
   sortOrder: 0,
   status: 1
+})
+
+const isGenreTab = computed(() => activeTab.value === 'INHERITOR_GENRE')
+const showContentField = computed(() => true)
+const showImageField = computed(() => activeTab.value !== 'NOTICE' && activeTab.value !== 'INHERITOR_GENRE')
+const titleLabel = computed(() => isGenreTab.value ? '流派名称' : '标题')
+const titlePlaceholder = computed(() => isGenreTab.value ? '请输入流派名称' : '请输入标题')
+const contentLabel = computed(() => isGenreTab.value ? '备注' : '内容/描述')
+const createButtonText = computed(() => isGenreTab.value ? '新增流派' : '新增内容')
+const contentPlaceholder = computed(() => {
+  if (activeTab.value === 'INHERITOR_GENRE') {
+    return '请输入备注'
+  }
+  return '请输入首页点击后弹窗展示的内容'
 })
 
 const fetchData = async () => {
@@ -235,10 +270,14 @@ const handleDelete = (row) => {
 
 const handleSubmit = async () => {
   if (!form.title) {
-    ElMessage.warning('标题不能为空')
+    ElMessage.warning(isGenreTab.value ? '流派名称不能为空' : '标题不能为空')
     return
   }
 
+  if (isGenreTab.value) {
+    form.subtitle = ''
+    form.imageUrl = ''
+  }
   form.linkUrl = ''
   
   try {

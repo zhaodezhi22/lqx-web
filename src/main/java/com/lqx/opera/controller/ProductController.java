@@ -76,7 +76,17 @@ public class ProductController {
     // Admin Create
     @PostMapping
     @RequireRole({2, 3})
-    public Result<Boolean> create(@RequestBody Product product) {
+    public Result<Boolean> create(@RequestBody Product product, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (product.getStatus() == null) {
+            product.setStatus(1);
+        }
+        if (product.getCreatedTime() == null) {
+            product.setCreatedTime(LocalDateTime.now());
+        }
+        if (product.getSellerId() == null) {
+            product.setSellerId(userId);
+        }
         boolean saved = productService.save(product);
         return saved ? Result.success(true) : Result.fail("保存失败");
     }
@@ -85,7 +95,20 @@ public class ProductController {
     @PutMapping("/{id}")
     @RequireRole({2, 3})
     public Result<Boolean> update(@PathVariable Long id, @RequestBody Product product) {
+        Product existing = productService.getById(id);
+        if (existing == null) {
+            return Result.fail("商品不存在");
+        }
         product.setProductId(id);
+        if (product.getSellerId() == null) {
+            product.setSellerId(existing.getSellerId());
+        }
+        if (product.getCreatedTime() == null) {
+            product.setCreatedTime(existing.getCreatedTime());
+        }
+        if (product.getStatus() == null) {
+            product.setStatus(existing.getStatus());
+        }
         boolean updated = productService.updateById(product);
         return updated ? Result.success(true) : Result.fail("更新失败");
     }

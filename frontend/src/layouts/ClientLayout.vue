@@ -53,7 +53,8 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="$router.push('/profile')">个人中心</el-dropdown-item>
-                <el-dropdown-item v-if="role == 1" @click="$router.push('/inheritor/center')">传承人中心</el-dropdown-item>
+                <el-dropdown-item v-if="role == 1" @click="$router.push('/inheritor/center')">非遗工作台</el-dropdown-item>
+                <el-dropdown-item v-if="role == 2 || role == 3" @click="$router.push('/admin/dashboard')">管理后台</el-dropdown-item>
                 <el-dropdown-item v-if="role == 0" @click="$router.push('/inheritor/apply')">申请传承人</el-dropdown-item>
                 <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>

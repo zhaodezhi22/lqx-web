@@ -9,6 +9,11 @@
           <el-carousel-item v-for="(item, index) in carouselItems" :key="index">
             <div class="carousel-item-content" @click="handleCarouselClick(item)">
               <img :src="item.imageUrl" alt="Carousel Image" class="carousel-image" />
+              <div class="carousel-copy" v-if="item.subtitle">
+                <div class="carousel-copy-inner">
+                  <p class="carousel-copy-subtitle">{{ item.subtitle }}</p>
+                </div>
+              </div>
             </div>
           </el-carousel-item>
         </el-carousel>
@@ -231,7 +236,9 @@ const fetchFeatured = async () => {
   }
 }
 
-onMounted(fetchFeatured)
+onMounted(() => {
+  fetchFeatured()
+})
 </script>
 
 <style scoped>
@@ -341,6 +348,39 @@ onMounted(fetchFeatured)
   height: 100%;
   position: relative;
   cursor: pointer;
+}
+
+.carousel-copy {
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: 30px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.carousel-copy-inner {
+  max-width: min(560px, 100%);
+  padding: 14px 18px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(27, 19, 16, 0.60), rgba(93, 34, 29, 0.42), rgba(214, 174, 96, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 20px 40px rgba(17, 10, 8, 0.24);
+  backdrop-filter: blur(12px);
+}
+
+.carousel-copy-subtitle {
+  margin: 0;
+  color: rgba(255, 234, 205, 0.95);
+  font-size: 17px;
+  line-height: 1.8;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .hero-frame :deep(.el-carousel__button) {
@@ -571,6 +611,22 @@ onMounted(fetchFeatured)
 
   .showcase-big {
     min-height: 300px;
+  }
+
+  .carousel-copy {
+    left: 16px;
+    right: 16px;
+    bottom: 20px;
+  }
+
+  .carousel-copy-inner {
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .carousel-copy-subtitle {
+    font-size: 14px;
+    line-height: 1.7;
   }
 
   .showcase-content {

@@ -20,6 +20,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/master/apprentice")
 public class ApprenticeshipController {
+    private static final String MASTER_CHANGE_PREFIX = "[MASTER_CHANGE]";
+    private static final String UNBIND_PREFIX = "[UNBIND]";
 
     private final ApprenticeshipService apprenticeshipService;
     private final SysUserService sysUserService;
@@ -71,6 +73,42 @@ public class ApprenticeshipController {
         return Result.success(map);
     }
 
+    @GetMapping("/unbind/my-apply")
+    public Result<UnbindApplyDTO> getMyPendingUnbindApply(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
+        ApprenticeshipApply apply = apprenticeshipService.getPendingUnbindApply(userId);
+        if (apply == null) {
+            return Result.success(null);
+        }
+
+        UnbindApplyDTO dto = new UnbindApplyDTO();
+        dto.setId(apply.getId());
+        dto.setMasterId(apply.getMasterId());
+        dto.setStatus(apply.getStatus());
+        dto.setReason(stripUnbindPrefix(apply.getApplyContent()));
+
+        SysUser master = sysUserService.getById(apply.getMasterId());
+        if (master != null) {
+            dto.setMasterName(master.getRealName() != null ? master.getRealName() : master.getUsername());
+        }
+        return Result.success(dto);
+    }
+
+    @PostMapping("/unbind/apply")
+    public Result<Boolean> submitUnbindApply(@RequestBody ApplyRequest req, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
+        try {
+            apprenticeshipService.submitUnbindApply(userId, req != null ? req.getContent() : null);
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     /**
      * 获取我的徒弟列表
      */
@@ -96,6 +134,9 @@ public class ApprenticeshipController {
         Page<ApprenticeshipApply> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<ApprenticeshipApply> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ApprenticeshipApply::getMasterId, userId)
+               .and(w -> w.isNull(ApprenticeshipApply::getApplyContent)
+                       .or()
+                       .notLikeRight(ApprenticeshipApply::getApplyContent, MASTER_CHANGE_PREFIX))
                .orderByDesc(ApprenticeshipApply::getId); // Show all, let frontend filter or backend filter? 
                // User requirement: "分页查询待审核申请" (Page query pending applications)
                // But usually management needs to see history too. I'll return all and let frontend filter or add status param.
@@ -129,7 +170,8 @@ public class ApprenticeshipController {
             ApprenticeApplyDTO dto = new ApprenticeApplyDTO();
             dto.setId(apply.getId());
             dto.setStudentId(apply.getStudentId());
-            dto.setApplyContent(apply.getApplyContent());
+            dto.setApplyType(isUnbindApply(apply) ? 2 : 1);
+            dto.setApplyContent(isUnbindApply(apply) ? stripUnbindPrefix(apply.getApplyContent()) : apply.getApplyContent());
             dto.setStatus(apply.getStatus());
             // Get student info
             SysUser student = sysUserService.getById(apply.getStudentId());
@@ -177,6 +219,40 @@ public class ApprenticeshipController {
         }
     }
 
+    @PutMapping("/unbind/audit")
+    @RequireRole(1)
+    public Result<Boolean> auditUnbind(@RequestBody AuditRequest req, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
+        try {
+            if (req.getStatus() == 1) {
+                apprenticeshipService.auditUnbindApply(req.getId(), userId, true);
+            } else if (req.getStatus() == 2) {
+                apprenticeshipService.auditUnbindApply(req.getId(), userId, false);
+            } else {
+                return Result.fail("无效的状态");
+            }
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
+    @PostMapping("/unbind/direct/{studentId}")
+    @RequireRole(1)
+    public Result<Boolean> directUnbind(@PathVariable Long studentId, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
+        try {
+            apprenticeshipService.terminateRelation(userId, studentId);
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     @Data
     public static class ApprenticeApplyDTO {
         private Long id;
@@ -184,6 +260,16 @@ public class ApprenticeshipController {
         private String studentName;
         private String studentAvatar;
         private String applyContent;
+        private Integer applyType; // 1-拜师申请 2-解除申请
+        private Integer status;
+    }
+
+    @Data
+    public static class UnbindApplyDTO {
+        private Long id;
+        private Long masterId;
+        private String masterName;
+        private String reason;
         private Integer status;
     }
 
@@ -192,5 +278,18 @@ public class ApprenticeshipController {
         private Long id;
         private Integer status; // 1-pass, 2-reject
         private String message; // Optional message
+    }
+
+    private boolean isUnbindApply(ApprenticeshipApply apply) {
+        return apply != null
+                && apply.getApplyContent() != null
+                && apply.getApplyContent().startsWith(UNBIND_PREFIX);
+    }
+
+    private String stripUnbindPrefix(String content) {
+        if (content == null) {
+            return "";
+        }
+        return content.startsWith(UNBIND_PREFIX) ? content.substring(UNBIND_PREFIX.length()) : content;
     }
 }

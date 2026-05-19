@@ -47,7 +47,7 @@ public class DashboardServiceImpl implements DashboardService {
         DashboardStatsDto dto = new DashboardStatsDto();
 
         // 1. Basic Counts
-        dto.setTotalUsers(userMapper.selectCount(new QueryWrapper<SysUser>().eq("role", 0)));
+        dto.setTotalUsers(userMapper.selectCount(new QueryWrapper<>()));
         dto.setTotalInheritors(inheritorMapper.selectCount(null));
         dto.setTotalResources(resourceMapper.selectCount(null));
 

@@ -3,7 +3,7 @@
     <el-tabs v-model="activeTab" type="border-card">
       
       <!-- 1. 档案管理 -->
-      <el-tab-pane label="我的档案" name="profile">
+      <el-tab-pane v-if="showMasterTabs" label="我的档案" name="profile">
         <div class="form-container">
           <h3>传承人档案</h3>
           <el-form :model="profileForm" label-width="100px">
@@ -15,7 +15,23 @@
               </el-input>
             </el-form-item>
             <el-form-item label="师承">
-              <el-input v-model="profileForm.masterName" :disabled="!!profileForm.masterId" placeholder="未绑定师父，可手动填写" />
+              <el-input v-model="profileForm.masterName" disabled placeholder="暂未绑定师父">
+                 <template #append>
+                    <el-button :disabled="!!pendingMasterChange" @click="openMasterChangeDialog">
+                      {{ pendingMasterChange ? '审核中' : '申请修改' }}
+                    </el-button>
+                 </template>
+              </el-input>
+              <div class="field-tip">师承变更需提交申请，管理员审核通过后才会生效。</div>
+              <el-alert
+                v-if="pendingMasterChange"
+                class="pending-master-alert"
+                type="warning"
+                show-icon
+                :closable="false"
+                :title="`师承变更申请审核中：${pendingMasterChange.currentMasterName || '暂无'} -> ${pendingMasterChange.targetMasterName || '待定'}`"
+                :description="pendingMasterChange.reason || '已提交申请，等待管理员审核。'"
+              />
             </el-form-item>
             <el-form-item label="流派">
               <el-input v-model="profileForm.genre" />
@@ -34,12 +50,12 @@
       </el-tab-pane>
 
       <!-- 2. 师门管理 -->
-      <el-tab-pane label="师门管理" name="apprenticeship">
+      <el-tab-pane v-if="showMasterTabs" label="师门管理" name="apprenticeship">
         <div class="toolbar">
-           <el-alert title="仅显示待审核的拜师申请" type="info" show-icon :closable="false" style="margin-bottom: 20px;" />
+           <el-alert title="显示待审核的拜师申请和解除申请" type="info" show-icon :closable="false" style="margin-bottom: 20px;" />
         </div>
         
-        <div v-if="apprenticeshipList.length === 0" class="empty-text">暂无待审核申请</div>
+        <div v-if="apprenticeshipList.length === 0" class="empty-text">暂无待审核师门申请</div>
 
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12" :md="8" v-for="item in apprenticeshipList" :key="item.id">
@@ -51,13 +67,18 @@
                   <div class="id">ID: {{ item.studentId }}</div>
                 </div>
               </div>
+              <div class="apply-type">
+                <el-tag :type="item.applyType === 2 ? 'warning' : 'primary'">
+                  {{ item.applyType === 2 ? '解除申请' : '拜师申请' }}
+                </el-tag>
+              </div>
               <div class="apply-content">
-                <p><strong>拜师贴：</strong></p>
+                <p><strong>{{ item.applyType === 2 ? '解除说明：' : '拜师贴：' }}</strong></p>
                 <div class="content-text">{{ item.applyContent }}</div>
               </div>
               <div class="actions">
-                <el-button type="success" size="small" @click="openAuditDialog(item, 1)">通过</el-button>
-                <el-button type="danger" size="small" @click="openAuditDialog(item, 2)">拒绝</el-button>
+                <el-button type="success" size="small" @click="openAuditDialog(item, 1)">{{ item.applyType === 2 ? '同意解除' : '通过' }}</el-button>
+                <el-button type="danger" size="small" @click="openAuditDialog(item, 2)">{{ item.applyType === 2 ? '驳回申请' : '拒绝' }}</el-button>
               </div>
             </el-card>
           </el-col>
@@ -65,7 +86,7 @@
       </el-tab-pane>
 
       <!-- 8. My Apprentices -->
-      <el-tab-pane label="我的门徒" name="my-apprentices">
+      <el-tab-pane v-if="showMasterTabs" label="我的门徒" name="my-apprentices">
         <el-table :data="myApprenticesList" v-loading="myApprenticesLoading" style="width: 100%">
             <el-table-column label="头像" width="80">
                 <template #default="scope">
@@ -79,11 +100,16 @@
             <el-table-column prop="joinTime" label="拜师时间">
                 <template #default="scope">{{ formatDate(scope.row.joinTime) }}</template>
             </el-table-column>
+            <el-table-column label="操作" width="140">
+                <template #default="scope">
+                    <el-button link type="danger" @click="directUnbindApprentice(scope.row)">解除关系</el-button>
+                </template>
+            </el-table-column>
         </el-table>
       </el-tab-pane>
 
       <!-- 7. 授业管理 (Teaching) -->
-      <el-tab-pane label="授业管理" name="teaching">
+      <el-tab-pane v-if="showMasterTabs" label="授业管理" name="teaching">
         <div class="toolbar">
            <el-button type="primary" @click="openPublishDialog()">发布新任务</el-button>
         </div>
@@ -97,44 +123,6 @@
             <template #default="scope">
               <el-button link type="primary" @click="openPublishDialog(scope.row)">编辑</el-button>
               <el-button link type="primary" @click="openSubmissionDrawer(scope.row)">查看作业</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-tab-pane>
-
-      <!-- 9. 订单管理 -->
-      <el-tab-pane label="订单管理" name="order-mgmt">
-        <div class="toolbar">
-           <el-button @click="fetchSellerOrders" :icon="Refresh">刷新订单</el-button>
-        </div>
-        
-        <el-table :data="sellerOrdersList" v-loading="sellerOrdersLoading" style="width: 100%; margin-top: 20px;">
-          <el-table-column prop="orderNo" label="订单号" width="180" />
-          <el-table-column prop="createTime" label="下单时间" width="160" />
-          <el-table-column label="包含商品" width="300">
-             <template #default="scope">
-                <div v-for="item in scope.row.items" :key="item.id" class="order-item-mini">
-                    <el-image :src="item.productImage" style="width: 40px; height: 40px; margin-right: 10px;" />
-                    <span class="item-name">{{ item.productName }} x {{ item.quantity }}</span>
-                </div>
-             </template>
-          </el-table-column>
-          <el-table-column prop="totalAmount" label="订单总额" width="120">
-              <template #default="scope">¥{{ scope.row.totalAmount }}</template>
-          </el-table-column>
-          <el-table-column prop="status" label="状态" width="100">
-             <template #default="scope">
-                <el-tag :type="getOrderStatusType(scope.row.status)">{{ getOrderStatusText(scope.row.status) }}</el-tag>
-             </template>
-          </el-table-column>
-          <el-table-column label="收货信息" width="200" show-overflow-tooltip>
-             <template #default="scope">{{ scope.row.addressSnapshot }}</template>
-          </el-table-column>
-          <el-table-column label="操作" fixed="right" width="180">
-            <template #default="scope">
-               <el-button v-if="scope.row.status === 1" type="primary" size="small" @click="openShipDialog(scope.row)">发货</el-button>
-               <el-button v-if="scope.row.status === 4" type="success" size="small" @click="handleRefundAudit(scope.row, true)">同意退款</el-button>
-               <el-button v-if="scope.row.status === 4" type="danger" size="small" @click="handleRefundAudit(scope.row, false)">驳回退款</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -235,6 +223,106 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
+
+      <el-tab-pane v-if="showMasterTabs" label="票务核销" name="ticket-checkin">
+        <el-card shadow="never" class="checkin-card">
+          <div class="checkin-header">
+            <div>
+              <h3>活动检票台</h3>
+              <p>仅可核销自己发布活动的已支付门票，输入 8 位核销码或完整订单号即可。</p>
+            </div>
+            <div class="checkin-actions">
+              <el-radio-group v-model="ticketOrderStatus" @change="fetchMyEventTicketOrders" size="small">
+                <el-radio-button :label="null">全部</el-radio-button>
+                <el-radio-button :label="1">待核销</el-radio-button>
+                <el-radio-button :label="2">已核销</el-radio-button>
+              </el-radio-group>
+              <el-button @click="fetchMyEventTicketOrders">刷新</el-button>
+            </div>
+          </div>
+
+          <div class="checkin-toolbar">
+            <el-input
+              v-model="ticketVerifyCode"
+              placeholder="请输入核销码或订单号"
+              clearable
+              @keyup.enter="submitTicketVerify"
+            />
+            <el-button type="primary" :loading="ticketVerifySubmitting" @click="submitTicketVerify">确认核销</el-button>
+          </div>
+
+          <el-table :data="myEventTicketOrders" v-loading="myEventTicketLoading" style="width: 100%; margin-top: 20px;">
+            <el-table-column prop="eventTitle" label="活动名称" min-width="180" />
+            <el-table-column prop="orderNo" label="订单号" width="180" />
+            <el-table-column prop="seatInfo" label="座位" width="120" />
+            <el-table-column prop="qrCode" label="核销码" width="120" />
+            <el-table-column label="购票时间" width="180">
+              <template #default="scope">{{ formatDate(scope.row.payTime || scope.row.createdTime) }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="scope">
+                <el-tag :type="scope.row.status === 2 ? 'success' : 'warning'">
+                  {{ scope.row.status === 2 ? '已核销' : '待核销' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="核销时间" width="180">
+              <template #default="scope">{{ formatDate(scope.row.verifyTime) || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="scope">
+                <el-button
+                  v-if="scope.row.status === 1"
+                  type="primary"
+                  size="small"
+                  @click="submitTicketVerify(scope.row.orderNo)"
+                >
+                  核销
+                </el-button>
+                <span v-else style="color: #67c23a;">已完成</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
+      <!-- 9. 订单管理 -->
+      <el-tab-pane label="订单管理" name="order-mgmt">
+        <div class="toolbar">
+           <el-button @click="fetchSellerOrders" :icon="Refresh">刷新订单</el-button>
+        </div>
+        
+        <el-table :data="sellerOrdersList" v-loading="sellerOrdersLoading" style="width: 100%; margin-top: 20px;">
+          <el-table-column prop="orderNo" label="订单号" width="180" />
+          <el-table-column prop="createTime" label="下单时间" width="160" />
+          <el-table-column label="包含商品" width="300">
+             <template #default="scope">
+                <div v-for="item in scope.row.items" :key="item.id" class="order-item-mini">
+                    <el-image :src="item.productImage" style="width: 40px; height: 40px; margin-right: 10px;" />
+                    <span class="item-name">{{ item.productName }} x {{ item.quantity }}</span>
+                </div>
+             </template>
+          </el-table-column>
+          <el-table-column prop="totalAmount" label="订单总额" width="120">
+              <template #default="scope">¥{{ scope.row.totalAmount }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="100">
+             <template #default="scope">
+                <el-tag :type="getOrderStatusType(scope.row.status)">{{ getOrderStatusText(scope.row.status) }}</el-tag>
+             </template>
+          </el-table-column>
+          <el-table-column label="收货信息" width="200" show-overflow-tooltip>
+             <template #default="scope">{{ scope.row.addressSnapshot }}</template>
+          </el-table-column>
+          <el-table-column label="操作" fixed="right" width="180">
+            <template #default="scope">
+               <el-button v-if="scope.row.status === 1" type="primary" size="small" @click="openShipDialog(scope.row)">发货</el-button>
+               <el-button v-if="scope.row.status === 4" type="success" size="small" @click="handleRefundAudit(scope.row, true)">同意退款</el-button>
+               <el-button v-if="scope.row.status === 4" type="danger" size="small" @click="handleRefundAudit(scope.row, false)">驳回退款</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
       
       <!-- 6. 销售数据 -->
       <el-tab-pane label="文创销售数据" name="sales">
@@ -262,6 +350,10 @@
         <div class="sales-tips" style="margin-top: 20px; color: #666;">
           <p>* 数据实时更新，仅统计已完成支付的订单。</p>
         </div>
+      </el-tab-pane>
+
+      <el-tab-pane v-if="showMasterTabs" label="收益提现" name="wallet">
+        <WalletPanel />
       </el-tab-pane>
     </el-tabs>
 
@@ -616,6 +708,46 @@
         </template>
     </el-dialog>
 
+    <el-dialog v-model="masterChangeDialogVisible" title="申请修改师承" width="520px">
+      <el-form :model="masterChangeForm" label-width="100px">
+        <el-form-item label="当前师承">
+          <el-input :model-value="profileForm.masterName || '暂无师承'" disabled />
+        </el-form-item>
+        <el-form-item label="新师父">
+          <el-select
+            v-model="masterChangeForm.targetMasterUserId"
+            filterable
+            remote
+            clearable
+            default-first-option
+            placeholder="可直接选择，也可输入姓名搜索认证传承人"
+            :remote-method="searchMasterCandidates"
+            :loading="masterChangeLoading"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in masterChangeOptions"
+              :key="item.userId"
+              :label="item.name + ' (' + item.level + ')'"
+              :value="item.userId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="申请说明">
+          <el-input
+            v-model="masterChangeForm.reason"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入修改师承的原因，便于管理员审核"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="masterChangeDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="masterChangeSubmitting" @click="submitMasterChange">提交申请</el-button>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -625,8 +757,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import SeatEditor from '../components/SeatEditor.vue'
+import WalletPanel from '../components/WalletPanel.vue'
+import { getCurrentRole } from '../utils/permission'
 
-const activeTab = ref('profile')
+const currentRole = getCurrentRole()
+const showMasterTabs = currentRole === 1
+const activeTab = ref(showMasterTabs ? 'profile' : 'resources')
 
 // --- Utils ---
 const formatDate = (dateStr) => {
@@ -677,6 +813,15 @@ const profileForm = reactive({
   artisticCareer: ''
 })
 const profileLoading = ref(false)
+const pendingMasterChange = ref(null)
+const masterChangeDialogVisible = ref(false)
+const masterChangeLoading = ref(false)
+const masterChangeSubmitting = ref(false)
+const masterChangeOptions = ref([])
+const masterChangeForm = reactive({
+  targetMasterUserId: null,
+  reason: ''
+})
 
 // Level Apply Logic
 const levelApplyDialogVisible = ref(false)
@@ -749,6 +894,15 @@ const fetchProfile = async () => {
   }
 }
 
+const fetchPendingMasterChange = async () => {
+  try {
+    const res = await request.get('/inheritor/master-change/my-apply')
+    pendingMasterChange.value = res.data || null
+  } catch (e) {
+    pendingMasterChange.value = null
+  }
+}
+
 const updateProfile = async () => {
   profileLoading.value = true
   try {
@@ -758,6 +912,54 @@ const updateProfile = async () => {
     ElMessage.error(e?.response?.data?.message || '更新失败')
   } finally {
     profileLoading.value = false
+  }
+}
+
+const openMasterChangeDialog = async () => {
+  if (pendingMasterChange.value) {
+    ElMessage.warning('您已有待审核的师承变更申请')
+    return
+  }
+  masterChangeForm.targetMasterUserId = null
+  masterChangeForm.reason = ''
+  masterChangeOptions.value = []
+  masterChangeDialogVisible.value = true
+  await searchMasterCandidates('')
+}
+
+const searchMasterCandidates = async (query) => {
+  masterChangeLoading.value = true
+  try {
+    const res = await request.get('/inheritor/masters', { params: { query } })
+    masterChangeOptions.value = (res.data || []).filter(item =>
+      item.userId !== profileForm.userId && item.id !== profileForm.masterId
+    )
+  } catch (e) {
+    masterChangeOptions.value = []
+  } finally {
+    masterChangeLoading.value = false
+  }
+}
+
+const submitMasterChange = async () => {
+  if (!masterChangeForm.targetMasterUserId) {
+    ElMessage.warning('请选择新的师父')
+    return
+  }
+  if (!masterChangeForm.reason) {
+    ElMessage.warning('请填写申请说明')
+    return
+  }
+  masterChangeSubmitting.value = true
+  try {
+    await request.post('/inheritor/master-change/apply', masterChangeForm)
+    ElMessage.success('师承变更申请已提交，等待管理员审核')
+    masterChangeDialogVisible.value = false
+    fetchPendingMasterChange()
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '提交失败')
+  } finally {
+    masterChangeSubmitting.value = false
   }
 }
 
@@ -788,7 +990,10 @@ const openAuditDialog = (item, action) => {
 const submitAudit = async () => {
     if (!currentAuditItem.value) return
     try {
-        await request.put('/master/apprentice/audit', {
+        const url = currentAuditItem.value.applyType === 2
+            ? '/master/apprentice/unbind/audit'
+            : '/master/apprentice/audit'
+        await request.put(url, {
             id: currentAuditItem.value.id,
             status: auditAction.value,
             message: auditMessage.value
@@ -796,7 +1001,7 @@ const submitAudit = async () => {
         
         auditDialogVisible.value = false
         
-        if (auditAction.value === 1) {
+        if (auditAction.value === 1 && currentAuditItem.value.applyType !== 2) {
              // Show Ritual Animation
              ritualVisible.value = true
              setTimeout(() => {
@@ -804,12 +1009,34 @@ const submitAudit = async () => {
                  ElMessage.success('操作成功，已发布社区动态')
                  fetchApprenticeship()
              }, 4000) // 4 seconds animation
+        } else if (auditAction.value === 1) {
+             ElMessage.success('已同意解除申请')
+             fetchApprenticeship()
         } else {
              ElMessage.success('已拒绝申请')
              fetchApprenticeship()
         }
     } catch (e) {
         ElMessage.error(e?.response?.data?.message || '操作失败')
+    }
+}
+
+const directUnbindApprentice = async (item) => {
+    const apprenticeName = item.realName || item.username || '该徒弟'
+    try {
+        await ElMessageBox.confirm(`确定解除与${apprenticeName}的师徒关系吗？历史任务和资源会保留。`, '提示', {
+            type: 'warning',
+            confirmButtonText: '确定解除',
+            cancelButtonText: '取消'
+        })
+        await request.post(`/master/apprentice/unbind/direct/${item.studentId}`)
+        ElMessage.success('师徒关系已解除，历史任务与资源已保留')
+        fetchMyApprenticesFull()
+        fetchApprenticeship()
+    } catch (e) {
+        if (e !== 'cancel') {
+            ElMessage.error(e?.response?.data?.message || '解除失败')
+        }
     }
 }
 
@@ -1123,6 +1350,48 @@ const handleOffline = async (row) => {
     }
 }
 
+// --- Ticket Check-in ---
+const myEventTicketOrders = ref([])
+const myEventTicketLoading = ref(false)
+const ticketVerifyCode = ref('')
+const ticketVerifySubmitting = ref(false)
+const ticketOrderStatus = ref(1)
+
+const fetchMyEventTicketOrders = async () => {
+    myEventTicketLoading.value = true
+    try {
+        const params = {}
+        if (ticketOrderStatus.value !== null) {
+            params.status = ticketOrderStatus.value
+        }
+        const res = await request.get('/ticket/my-event-orders', { params })
+        myEventTicketOrders.value = res.data || []
+    } catch (e) {
+        ElMessage.error(e?.response?.data?.message || '获取票务记录失败')
+    } finally {
+        myEventTicketLoading.value = false
+    }
+}
+
+const submitTicketVerify = async (code = '') => {
+    const finalCode = (code || ticketVerifyCode.value || '').trim()
+    if (!finalCode) {
+        ElMessage.warning('请输入核销码或订单号')
+        return
+    }
+    ticketVerifySubmitting.value = true
+    try {
+        await request.post('/ticket/verify', { orderNo: finalCode })
+        ElMessage.success('核销成功')
+        ticketVerifyCode.value = ''
+        fetchMyEventTicketOrders()
+    } catch (e) {
+        ElMessage.error(e?.response?.data?.message || '核销失败')
+    } finally {
+        ticketVerifySubmitting.value = false
+    }
+}
+
 // --- 6. Sales ---
 const salesStats = reactive({
     totalSales: '0.00',
@@ -1327,6 +1596,8 @@ watch(activeTab, (val) => {
         fetchProducts()
     } else if (val === 'activity') {
         fetchActivities()
+    } else if (val === 'ticket-checkin') {
+        fetchMyEventTicketOrders()
     } else if (val === 'sales') {
         fetchSalesStats()
     }
@@ -1426,8 +1697,11 @@ watch(activeTab, (val) => {
 })
 
 onMounted(() => {
-  fetchProfile()
-  fetchApprenticeship()
+  if (showMasterTabs) {
+    fetchProfile()
+    fetchPendingMasterChange()
+    fetchApprenticeship()
+  }
   fetchResourceCategories()
   fetchResources()
   fetchProducts()
@@ -1446,9 +1720,12 @@ onMounted(() => {
 .student-info { margin-left: 15px; }
 .student-info .name { font-size: 16px; font-weight: bold; }
 .student-info .id { font-size: 12px; color: #999; }
+.apply-type { margin-bottom: 12px; }
 .apply-content { background: #f8f8f8; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
 .content-text { font-size: 14px; line-height: 1.5; color: #333; }
 .actions { display: flex; justify-content: flex-end; gap: 10px; }
+.field-tip { margin-top: 8px; color: #909399; font-size: 12px; line-height: 1.6; }
+.pending-master-alert { margin-top: 12px; }
 .avatar-uploader .avatar { width: 100px; height: 100px; display: block; }
 .avatar-uploader-icon { font-size: 28px; color: #8c939d; width: 100px; height: 100px; text-align: center; border: 1px dashed #d9d9d9; border-radius: 6px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
 .stat-num { font-size: 24px; font-weight: bold; color: #409EFF; text-align: center; padding: 10px 0; }
@@ -1554,5 +1831,39 @@ onMounted(() => {
 .comment-author {
     font-weight: bold;
     color: #333;
+}
+
+.checkin-card {
+  border: 1px solid #ebeef5;
+}
+
+.checkin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.checkin-header h3 {
+  margin: 0 0 8px;
+}
+
+.checkin-header p {
+  margin: 0;
+  color: #909399;
+}
+
+.checkin-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.checkin-toolbar {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
 }
 </style>

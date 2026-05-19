@@ -5,11 +5,12 @@
         <el-card class="user-card">
           <div class="avatar-section">
             <el-avatar :size="100" :src="user.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" />
-            <div class="role-badge" v-if="user.role === 1">
-              <el-tag type="warning" effect="dark">非遗传承人</el-tag>
-            </div>
-            <div class="role-badge" v-else>
-              <el-tag type="info">普通用户</el-tag>
+            <div class="role-badge">
+              <el-tag v-if="user.role === 1" type="warning" effect="dark">非遗传承人</el-tag>
+              <el-tag v-else-if="user.role === 4" type="success" effect="dark">学徒</el-tag>
+              <el-tag v-else-if="user.role === 2" type="danger">管理员</el-tag>
+              <el-tag v-else-if="user.role === 3" type="danger" effect="dark">超级管理员</el-tag>
+              <el-tag v-else type="info">普通用户</el-tag>
             </div>
           </div>
           <h3 class="username">{{ user.username }}</h3>
@@ -262,8 +263,42 @@
                 </el-table-column>
               </el-table>
             </el-tab-pane>
-            <el-tab-pane v-if="hasMaster" label="我的师门" name="apprenticeship">
+            <el-tab-pane v-if="showApprenticeshipTab" label="我的师门" name="apprenticeship">
               <div class="apprenticeship-container">
+                <div class="apprenticeship-header">
+                  <el-alert
+                    v-if="hasMaster && currentMaster"
+                    :title="`当前师父：${currentMaster.name || '暂无'}`"
+                    type="info"
+                    show-icon
+                    :closable="false"
+                  />
+                  <el-alert
+                    v-else
+                    title="当前暂无有效师父关系，仍可继续查看历史师徒任务。"
+                    type="warning"
+                    show-icon
+                    :closable="false"
+                  />
+                  <el-button
+                    v-if="hasMaster"
+                    type="danger"
+                    plain
+                    :disabled="!!pendingUnbindApply"
+                    @click="applyUnbindMaster"
+                  >
+                    {{ pendingUnbindApply ? '解除申请审核中' : '申请解除师父' }}
+                  </el-button>
+                </div>
+                <el-alert
+                  v-if="pendingUnbindApply"
+                  class="pending-unbind-alert"
+                  type="warning"
+                  show-icon
+                  :closable="false"
+                  :title="`解除申请审核中：${pendingUnbindApply.masterName || '当前师父'}`"
+                  :description="pendingUnbindApply.reason || '已提交解除申请，等待师父处理。'"
+                />
                 <el-table :data="assignments" v-loading="assignmentsLoading" style="width: 100%">
                   <el-table-column prop="taskTitle" label="作业题目" min-width="150" />
                   <el-table-column prop="masterName" label="授课师父" width="120" />
@@ -474,7 +509,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, reactive, watch } from 'vue'
+import { ref, onMounted, onUnmounted, reactive, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
@@ -593,6 +628,9 @@ let ticketCountdownTimer = null
 const assignments = ref([])
 const assignmentsLoading = ref(false)
 const hasMaster = ref(false)
+const currentMaster = ref(null)
+const pendingUnbindApply = ref(null)
+const showApprenticeshipTab = computed(() => hasMaster.value || assignments.value.length > 0)
 
 const voucherDialogVisible = ref(false)
 const currentVoucher = ref('')
@@ -805,14 +843,23 @@ const fetchMyMaster = async () => {
     const res = await request.get('/master/apprentice/my-master')
     if (res.code === 200 && res.data) {
       hasMaster.value = true
+      currentMaster.value = res.data
     } else {
       hasMaster.value = false
-      if (activeTab.value === 'apprenticeship') {
-        activeTab.value = 'orders'
-      }
+      currentMaster.value = null
     }
   } catch (e) {
     hasMaster.value = false
+    currentMaster.value = null
+  }
+}
+
+const fetchPendingUnbindApply = async () => {
+  try {
+    const res = await request.get('/master/apprentice/unbind/my-apply')
+    pendingUnbindApply.value = res.code === 200 ? (res.data || null) : null
+  } catch (e) {
+    pendingUnbindApply.value = null
   }
 }
 
@@ -911,6 +958,7 @@ onMounted(() => {
     fetchMyOrders()
     fetchTickets()
     fetchMyMaster()
+    fetchPendingUnbindApply()
     fetchAssignments()
     // Initial fetch if tab is already set to points or address
     if (activeTab.value === 'points') {
@@ -932,6 +980,42 @@ const fetchAssignments = async () => {
     ElMessage.error('加载作业失败')
   } finally {
     assignmentsLoading.value = false
+  }
+}
+
+const applyUnbindMaster = async () => {
+  if (!hasMaster.value) {
+    ElMessage.warning('当前暂无可解除的师父关系')
+    return
+  }
+  if (pendingUnbindApply.value) {
+    ElMessage.warning('您已有待审核的解除申请')
+    return
+  }
+
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请输入解除原因。关系解除后，历史任务和资源会保留，可继续查看。',
+      '申请解除师父',
+      {
+        confirmButtonText: '提交申请',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputPlaceholder: '例如：后续学习方向调整，申请解除当前师徒关系',
+        inputValidator: (val) => !!(val && val.trim()),
+        inputErrorMessage: '请填写解除原因'
+      }
+    )
+
+    await request.post('/master/apprentice/unbind/apply', {
+      content: value
+    })
+    ElMessage.success('解除申请已提交，等待师父处理')
+    fetchPendingUnbindApply()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e?.response?.data?.message || '提交失败')
+    }
   }
 }
 
@@ -1283,6 +1367,16 @@ watch(activeTab, (val) => {
 }
 .content-card {
   min-height: 500px;
+}
+.apprenticeship-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.pending-unbind-alert {
+  margin-bottom: 16px;
 }
 .order-info-cell {
   display: flex;

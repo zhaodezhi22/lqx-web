@@ -14,8 +14,10 @@
           <template #default="{ row }">
              <el-tag v-if="row.role === 0">普通用户</el-tag>
              <el-tag v-else-if="row.role === 1" type="warning">传承人</el-tag>
-             <el-tag v-else-if="row.role === 2" type="danger">审核员</el-tag>
-             <el-tag v-else-if="row.role === 3" type="danger" effect="dark">管理员</el-tag>
+             <el-tag v-else-if="row.role === 2" type="danger">管理员</el-tag>
+             <el-tag v-else-if="row.role === 3" type="danger" effect="dark">超级管理员</el-tag>
+             <el-tag v-else-if="row.role === 4" type="success">学徒</el-tag>
+             <el-tag v-else type="info">未知角色</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态">

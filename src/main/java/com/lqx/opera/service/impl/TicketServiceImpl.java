@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -131,6 +132,47 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
     }
 
     @Override
+    public List<TicketOrderDetailDto> getPublisherTicketDetails(Long publisherId, Integer status) {
+        List<PerformanceEvent> events = performanceEventService.list(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PerformanceEvent>()
+                        .eq(PerformanceEvent::getPublisherId, publisherId)
+        );
+        if (events.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Long, PerformanceEvent> eventMap = events.stream()
+                .collect(Collectors.toMap(PerformanceEvent::getEventId, Function.identity()));
+
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<TicketOrder> query =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        query.in(TicketOrder::getEventId, eventMap.keySet());
+        if (status != null) {
+            query.eq(TicketOrder::getStatus, status);
+        } else {
+            query.in(TicketOrder::getStatus, 1, 2);
+        }
+        query.orderByDesc(TicketOrder::getCreatedTime);
+
+        List<TicketOrder> orders = this.list(query);
+        List<TicketOrderDetailDto> dtos = new ArrayList<>();
+        for (TicketOrder order : orders) {
+            TicketOrderDetailDto dto = new TicketOrderDetailDto();
+            BeanUtils.copyProperties(order, dto);
+            PerformanceEvent event = eventMap.get(order.getEventId());
+            if (event != null) {
+                dto.setEventTitle(event.getTitle());
+                dto.setEventVenue(event.getVenue());
+                dto.setShowTime(event.getShowTime());
+            } else {
+                dto.setEventTitle("未知演出");
+            }
+            dtos.add(dto);
+        }
+        return dtos;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean refundTicket(Long userId, Long orderId) {
         TicketOrder order = this.getById(orderId);
@@ -171,6 +213,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         if (event == null) {
             throw new RuntimeException("演出不存在");
         }
+        ensurePublisherCannotBuy(event, userId);
 
         TicketOrder existingOrder = this.lambdaQuery()
                 .eq(TicketOrder::getEventId, eventId)
@@ -220,6 +263,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         if (event == null) {
             throw new RuntimeException("演出不存在");
         }
+        ensurePublisherCannotBuy(event, userId);
 
         TicketOrder order = lockSeat(dto.getEventId(), dto.getSeatInfo(), userId);
         order.setPrice(dto.getPrice());
@@ -292,7 +336,7 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
     }
 
     @Override
-    public void verifyTicket(String code, Long verifierId) {
+    public void verifyTicket(String code, Long verifierId, Integer verifierRole) {
         // Try to find by OrderNo first, then by Voucher Code (qrCode)
         TicketOrder order = this.getOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<TicketOrder>()
                 .eq(TicketOrder::getOrderNo, code)
@@ -309,6 +353,14 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
         
         if (order.getStatus() != 1) {
             throw new RuntimeException("订单状态无效(未支付或已取消)");
+        }
+
+        PerformanceEvent event = performanceEventService.getById(order.getEventId());
+        if (event == null) {
+            throw new RuntimeException("关联演出不存在");
+        }
+        if (verifierRole != null && verifierRole == 1 && !verifierId.equals(event.getPublisherId())) {
+            throw new RuntimeException("只能核销自己发布活动的门票");
         }
         
         order.setStatus(2); // 2-Verified
@@ -477,6 +529,12 @@ public class TicketServiceImpl extends ServiceImpl<TicketOrderMapper, TicketOrde
     private boolean isOrderExpired(TicketOrder order) {
         return order.getCreatedTime() != null
                 && order.getCreatedTime().isBefore(LocalDateTime.now().minusSeconds(30));
+    }
+
+    private void ensurePublisherCannotBuy(PerformanceEvent event, Long userId) {
+        if (event != null && event.getPublisherId() != null && event.getPublisherId().equals(userId)) {
+            throw new RuntimeException("活动发布者本人不能购买自己发布的活动门票");
+        }
     }
 
     private String generateOrderNo() {

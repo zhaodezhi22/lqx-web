@@ -150,10 +150,12 @@ const currentProductId = ref(null)
 const roleName = computed(() => {
   if (!profile.value) return ''
   switch (profile.value.role) {
+    case 0: return '普通用户'
     case 1: return '非遗传承人'
-    case 2: return '普通用户' // Usually shouldn't be here unless they posted stuff
-    case 3: return '管理员'
-    default: return '用户'
+    case 2: return '管理员'
+    case 3: return '超级管理员'
+    case 4: return '学徒'
+    default: return '未知角色'
   }
 })
 

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getCurrentRole, getCurrentUser, isAdminRole, hasRole } from '../utils/permission'
+import { getCurrentRole, getCurrentUser, isAdminRole, hasAnyRole } from '../utils/permission'
 
 const routes = [
   // Auth routes (Standalone)
@@ -48,13 +48,12 @@ const routes = [
       { path: 'inheritor-review', name: 'AdminInheritorReview', component: () => import('../views/AdminInheritorReview.vue') },
       { path: 'inheritor-level-audit', name: 'AdminInheritorLevelAudit', component: () => import('../views/AdminInheritorLevelAudit.vue') },
       { path: 'resource-audit', name: 'AdminResourceAudit', component: () => import('../views/AdminResourceAudit.vue') },
-      { path: 'event-audit', name: 'AdminEventAudit', component: () => import('../views/AdminEventAudit.vue') },
-      { path: 'product-audit', name: 'AdminProductAudit', component: () => import('../views/AdminProductAudit.vue') },
       { path: 'resources', name: 'AdminResource', component: () => import('../views/AdminResource.vue') },
       { path: 'lineage', name: 'AdminLineageMgmt', component: () => import('../views/AdminLineageMgmt.vue') },
       { path: 'tickets', name: 'AdminTicketMgmt', component: () => import('../views/AdminTicketMgmt.vue') },
       { path: 'event/:id/seats', name: 'AdminSeatMgmt', component: () => import('../views/AdminSeatMgmt.vue') },
       { path: 'mall', name: 'AdminMallOrder', component: () => import('../views/AdminMallOrder.vue') },
+      { path: 'wallet', name: 'AdminWallet', component: () => import('../views/AdminWallet.vue') },
       { path: 'comments', name: 'AdminCommentAudit', component: () => import('../views/AdminCommentAudit.vue') },
       { path: 'users', name: 'AdminUser', component: () => import('../views/AdminUser.vue') },
       { path: 'logs', name: 'AdminSystemLogs', component: () => import('../views/AdminSystemLogs.vue') },
@@ -100,7 +99,7 @@ router.beforeEach((to, from, next) => {
 
   // Inheritor Routes Guard
   if (to.path.startsWith('/inheritor/center')) {
-    if (!token || !hasRole(1)) {
+    if (!token || !hasAnyRole([1])) {
       return next({
         name: 'Forbidden',
         query: {

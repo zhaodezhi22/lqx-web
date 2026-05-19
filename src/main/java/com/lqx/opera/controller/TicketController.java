@@ -14,6 +14,7 @@ import com.lqx.opera.service.PerformanceEventService;
 import com.lqx.opera.service.TicketService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,11 +33,23 @@ public class TicketController {
         this.sysUserService = sysUserService;
     }
 
-    @PostMapping("/lock")
-    public Result<TicketOrder> lockSeat(@RequestBody LockSeatRequest req, HttpServletRequest request) {
+    @PostMapping(value = "/lock", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Result<TicketOrder> lockSeatJson(@RequestBody LockSeatRequest req, HttpServletRequest request) {
+        return doLockSeat(req, request);
+    }
+
+    @PostMapping(value = "/lock", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public Result<TicketOrder> lockSeatForm(LockSeatRequest req, HttpServletRequest request) {
+        return doLockSeat(req, request);
+    }
+
+    private Result<TicketOrder> doLockSeat(LockSeatRequest req, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) {
             return Result.fail(HttpStatus.UNAUTHORIZED.value(), "未登录");
+        }
+        if (req == null || req.getEventId() == null || req.getSeatId() == null || req.getSeatId().isBlank()) {
+            return Result.fail(400, "锁票参数不完整");
         }
 
         PerformanceEvent event = performanceEventService.getById(req.getEventId());
@@ -180,6 +193,17 @@ public class TicketController {
         return Result.success(ticketService.getAllTicketDetails(status));
     }
 
+    @GetMapping("/my-event-orders")
+    @RequireRole(1)
+    public Result<List<TicketOrderDetailDto>> getMyEventOrders(@RequestParam(required = false) Integer status,
+                                                               HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        return Result.success(ticketService.getPublisherTicketDetails(userId, status));
+    }
+
     @GetMapping("/upcoming")
     public Result<List<com.lqx.opera.dto.EventDetailDTO>> upcoming(@RequestParam(required = false, defaultValue = "3") Integer limit) {
         LambdaQueryWrapper<PerformanceEvent> wrapper = new LambdaQueryWrapper<>();
@@ -237,10 +261,11 @@ public class TicketController {
     @RequireRole({1, 2, 3}) // 传承人或工作人员
     public Result<Boolean> verifyTicket(@RequestBody VerifyTicketRequest req, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
+        Integer role = (Integer) request.getAttribute("role");
         if (userId == null) return Result.fail(401, "未登录");
 
         try {
-            ticketService.verifyTicket(req.getOrderNo(), userId);
+            ticketService.verifyTicket(req.getOrderNo(), userId, role);
             return Result.success(true);
         } catch (Exception e) {
             return Result.fail(e.getMessage());

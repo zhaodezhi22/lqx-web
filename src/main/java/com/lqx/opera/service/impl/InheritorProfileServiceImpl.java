@@ -293,7 +293,10 @@ public class InheritorProfileServiceImpl extends ServiceImpl<InheritorProfileMap
     @Override
     public List<InheritorProfile> searchVerifiedMasters(String query) {
         if (query == null || query.trim().isEmpty()) {
-            return Collections.emptyList();
+            return this.list(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<InheritorProfile>()
+                    .eq(InheritorProfile::getVerifyStatus, 1)
+                    .orderByDesc(InheritorProfile::getId)
+                    .last("LIMIT 50"));
         }
         
         List<SysUser> users = sysUserService.list(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()

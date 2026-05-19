@@ -1,22 +1,17 @@
 <template>
   <div class="home-resources">
     <SectionTitle text="在线戏院" more-link="/resources" />
-    <el-tabs v-model="active" class="res-tabs" @tab-click="onTab">
-      <el-tab-pane label="经典重温" name="classic" />
-      <el-tab-pane label="教学视频" name="teaching" />
-      <el-tab-pane label="剧本" name="scripts" />
-    </el-tabs>
     <el-row :gutter="20">
       <el-col :xs="24" :sm="12" :md="6" v-for="r in resourcesToShow" :key="r.resourceId || r.id" class="res-col">
         <el-card class="res-card" shadow="hover" @click="viewResource(r.resourceId || r.id)">
           <div class="thumb">
             <img :src="r.coverImg || placeholder" />
-            <div class="play-icon">{{ currentBadge }}</div>
+            <div class="play-icon">{{ getResourceBadge(r) }}</div>
           </div>
           <div class="card-body">
             <div class="title">{{ r.title }}</div>
             <div class="card-footer">
-              <span class="meta-text">{{ currentMeta }}</span>
+              <span class="meta-text">{{ getResourceMeta(r) }}</span>
               <span class="view-text">立即查看</span>
             </div>
           </div>
@@ -36,7 +31,6 @@ import request from '../../utils/request'
 import SectionTitle from '../common/SectionTitle.vue'
 
 const router = useRouter()
-const active = ref('classic')
 const resources = ref([])
 const loading = ref(false)
 const placeholder = 'https://images.unsplash.com/photo-1514533450685-4493e01d1fdc?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80'
@@ -45,40 +39,32 @@ const resourcesToShow = computed(() => {
   return resources.value
 })
 
-const badgeMap = {
-  classic: '经典',
-  teaching: '教学',
-  scripts: '剧本',
+const typeBadgeMap = {
+  1: '视频',
+  2: '音频',
+  3: '图文',
+  4: '附件'
 }
 
-const metaMap = {
-  classic: '精选舞台影像',
-  teaching: '入门与进阶内容',
-  scripts: '经典剧本资料',
+const getResourceBadge = (resource) => {
+  return typeBadgeMap[resource?.type] || '精选'
 }
 
-const currentBadge = computed(() => badgeMap[active.value] || '推荐')
-const currentMeta = computed(() => metaMap[active.value] || '精选内容')
+const getResourceMeta = (resource) => {
+  return resource?.category || '在线影院推荐'
+}
 
 const fetchResources = async () => {
   loading.value = true
   try {
-    if (active.value === 'classic') {
-      const res = await request.get('/resources/featured', { params: { limit: 4 } })
-      resources.value = res.data || []
-      return
-    }
-
-    const type = active.value === 'teaching' ? 1 : 4
-    const res = await request.get('/resources', { params: { type, page: 1, size: 4 } })
+    const res = await request.get('/resources/featured', { params: { limit: 4 } })
     resources.value = res.data?.records || []
+    if (Array.isArray(res.data)) {
+      resources.value = res.data
+    }
   } finally {
     loading.value = false
   }
-}
-
-const onTab = () => {
-  fetchResources()
 }
 
 const viewResource = (id) => {
@@ -91,10 +77,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.res-tabs {
-  margin-bottom: 16px;
-}
-
 .res-col {
   display: flex;
 }

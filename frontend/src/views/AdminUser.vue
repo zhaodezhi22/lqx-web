@@ -19,8 +19,10 @@
           <template #default="{ row }">
              <el-tag v-if="row.role === 0">普通用户</el-tag>
              <el-tag v-else-if="row.role === 1" type="warning">传承人</el-tag>
-             <el-tag v-else-if="row.role === 2" type="danger">审核员</el-tag>
-             <el-tag v-else-if="row.role === 3" type="danger" effect="dark">管理员</el-tag>
+             <el-tag v-else-if="row.role === 2" type="danger">管理员</el-tag>
+             <el-tag v-else-if="row.role === 3" type="danger" effect="dark">超级管理员</el-tag>
+             <el-tag v-else-if="row.role === 4" type="success">学徒</el-tag>
+             <el-tag v-else type="info">未知角色</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态">
@@ -64,8 +66,9 @@
                 <el-select v-model="roleForm.role" placeholder="请选择角色">
                     <el-option label="普通用户" :value="0" />
                     <el-option label="传承人" :value="1" />
-                    <el-option label="审核员" :value="2" />
-                    <el-option label="管理员" :value="3" />
+                    <el-option label="管理员" :value="2" />
+                    <el-option label="超级管理员" :value="3" />
+                    <el-option label="学徒" :value="4" />
                 </el-select>
             </el-form-item>
         </el-form>

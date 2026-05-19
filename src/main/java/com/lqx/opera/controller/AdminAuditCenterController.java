@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lqx.opera.common.Result;
 import com.lqx.opera.common.annotation.RequireRole;
 import com.lqx.opera.entity.HeritageResource;
+import com.lqx.opera.entity.PerformanceEvent;
 import com.lqx.opera.entity.Product;
 import com.lqx.opera.entity.SysUser;
 import com.lqx.opera.service.HeritageResourceService;
+import com.lqx.opera.service.PerformanceEventService;
 import com.lqx.opera.service.ProductService;
 import com.lqx.opera.service.SysUserService;
 import lombok.Data;
@@ -23,13 +25,16 @@ public class AdminAuditCenterController {
 
     private final HeritageResourceService heritageResourceService;
     private final ProductService productService;
+    private final PerformanceEventService performanceEventService;
     private final SysUserService sysUserService;
 
     public AdminAuditCenterController(HeritageResourceService heritageResourceService,
                                       ProductService productService,
+                                      PerformanceEventService performanceEventService,
                                       SysUserService sysUserService) {
         this.heritageResourceService = heritageResourceService;
         this.productService = productService;
+        this.performanceEventService = performanceEventService;
         this.sysUserService = sysUserService;
     }
 
@@ -51,6 +56,9 @@ public class AdminAuditCenterController {
         }
         if ("ALL".equals(normalizedType) || "PRODUCT".equals(normalizedType)) {
             merged.addAll(buildProductItems(status, normalizedKeyword, normalizedApplicantName));
+        }
+        if ("ALL".equals(normalizedType) || "EVENT".equals(normalizedType)) {
+            merged.addAll(buildEventItems(status, normalizedKeyword, normalizedApplicantName));
         }
 
         merged.sort(Comparator
@@ -95,6 +103,15 @@ public class AdminAuditCenterController {
             return productService.updateById(product) ? Result.success(true) : Result.fail("商品审核失败");
         }
 
+        if ("EVENT".equals(normalizedType)) {
+            PerformanceEvent event = performanceEventService.getById(id);
+            if (event == null) {
+                return Result.fail(404, "活动不存在");
+            }
+            event.setStatus(request.getStatus());
+            return performanceEventService.updateById(event) ? Result.success(true) : Result.fail("活动审核失败");
+        }
+
         return Result.fail(400, "不支持的审核类型");
     }
 
@@ -122,6 +139,12 @@ public class AdminAuditCenterController {
                     product.setStatus(request.getStatus());
                     product.setAuditRemark(request.getRemark());
                     productService.updateById(product);
+                }
+            } else if ("EVENT".equals(normalizedType)) {
+                PerformanceEvent event = performanceEventService.getById(item.getRecordId());
+                if (event != null) {
+                    event.setStatus(request.getStatus());
+                    performanceEventService.updateById(event);
                 }
             }
         }
@@ -173,6 +196,27 @@ public class AdminAuditCenterController {
             dto.setAuditRemark(item.getAuditRemark());
             dto.setDescription(item.getDetail());
             dto.setCoverImage(item.getMainImage());
+            return Result.success(dto);
+        }
+        if ("EVENT".equals(normalizedType)) {
+            PerformanceEvent item = performanceEventService.getById(id);
+            if (item == null) {
+                return Result.fail(404, "活动不存在");
+            }
+            SysUser user = item.getPublisherId() == null ? null : sysUserService.getById(item.getPublisherId());
+            AuditCenterItem dto = new AuditCenterItem();
+            dto.setBizType("EVENT");
+            dto.setRecordId(item.getEventId());
+            dto.setTitle(item.getTitle());
+            dto.setSubTitle(item.getVenue());
+            dto.setStatus(item.getStatus());
+            dto.setCreatedTime(item.getShowTime());
+            dto.setApplicantId(item.getPublisherId());
+            dto.setApplicantName(resolveUserName(user));
+            dto.setMeta(item.getTicketPrice() == null ? "" : "活动票价: ¥" + item.getTicketPrice());
+            dto.setDescription(item.getDescription());
+            dto.setCoverImage(item.getCoverImage());
+            dto.setEventTime(item.getShowTime());
             return Result.success(dto);
         }
         return Result.fail(400, "不支持的审核类型");
@@ -229,6 +273,36 @@ public class AdminAuditCenterController {
             dto.setApplicantName(resolveUserName(userMap.get(item.getSellerId())));
             dto.setMeta(item.getPrice() == null ? "" : "商品价格: ¥" + item.getPrice());
             dto.setAuditRemark(item.getAuditRemark());
+            return dto;
+        }).filter(item -> applicantName.isEmpty() || item.getApplicantName().contains(applicantName))
+                .collect(Collectors.toList());
+    }
+
+    private List<AuditCenterItem> buildEventItems(Integer status, String keyword, String applicantName) {
+        LambdaQueryWrapper<PerformanceEvent> wrapper = new LambdaQueryWrapper<>();
+        if (status != null) {
+            wrapper.eq(PerformanceEvent::getStatus, status);
+        }
+        if (!keyword.isEmpty()) {
+            wrapper.like(PerformanceEvent::getTitle, keyword);
+        }
+        List<PerformanceEvent> events = performanceEventService.list(wrapper);
+        Map<Long, SysUser> userMap = buildUserMap(events.stream().map(PerformanceEvent::getPublisherId).collect(Collectors.toSet()));
+
+        return events.stream().map(item -> {
+            AuditCenterItem dto = new AuditCenterItem();
+            dto.setBizType("EVENT");
+            dto.setRecordId(item.getEventId());
+            dto.setTitle(item.getTitle());
+            dto.setSubTitle(item.getVenue());
+            dto.setStatus(item.getStatus());
+            dto.setCreatedTime(item.getShowTime());
+            dto.setApplicantId(item.getPublisherId());
+            dto.setApplicantName(resolveUserName(userMap.get(item.getPublisherId())));
+            dto.setMeta(item.getTicketPrice() == null ? "" : "活动票价: ¥" + item.getTicketPrice());
+            dto.setDescription(item.getDescription());
+            dto.setCoverImage(item.getCoverImage());
+            dto.setEventTime(item.getShowTime());
             return dto;
         }).filter(item -> applicantName.isEmpty() || item.getApplicantName().contains(applicantName))
                 .collect(Collectors.toList());
@@ -294,5 +368,6 @@ public class AdminAuditCenterController {
         private String description;
         private String coverImage;
         private String fileUrl;
+        private LocalDateTime eventTime;
     }
 }

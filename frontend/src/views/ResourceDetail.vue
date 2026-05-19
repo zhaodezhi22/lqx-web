@@ -33,6 +33,17 @@
       <div class="player">
         <video v-if="isVideo" controls :src="detail.fileUrl" style="width: 100%; max-width: 900px" />
         <audio v-else-if="isAudio" controls :src="detail.fileUrl" style="width: 100%; max-width: 600px" />
+        <img v-else-if="shouldShowImageFile" class="image" :src="detail.fileUrl" alt="resource" />
+        <iframe
+          v-else-if="isPdf"
+          class="pdf-frame"
+          :src="detail.fileUrl"
+          title="资源预览"
+        />
+        <div v-else-if="hasFileUrl" class="file-box">
+          <el-button type="primary" :href="detail.fileUrl" tag="a" target="_blank">打开资源文件</el-button>
+          <el-link :href="detail.fileUrl" target="_blank" type="primary">{{ detail.fileUrl }}</el-link>
+        </div>
         <img v-else class="image" :src="detail.coverImg || placeholder" alt="cover" />
       </div>
       <div class="desc" v-html="detail.description || '暂无简介'"></div>
@@ -59,6 +70,13 @@ const viewTimer = ref(null)
 
 const isVideo = computed(() => detail.value?.type === 1)
 const isAudio = computed(() => detail.value?.type === 2)
+const hasFileUrl = computed(() => !!detail.value?.fileUrl)
+const normalizedFileUrl = computed(() => (detail.value?.fileUrl || '').toLowerCase())
+const isPdf = computed(() => detail.value?.type === 4 || normalizedFileUrl.value.endsWith('.pdf'))
+const shouldShowImageFile = computed(() => {
+  if (!hasFileUrl.value) return false
+  return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].some(ext => normalizedFileUrl.value.endsWith(ext))
+})
 
 const fetchDetail = async () => {
   loading.value = true
@@ -80,7 +98,7 @@ const goProfile = (userId) => {
 const startViewTimer = () => {
   if (viewTimer.value) clearTimeout(viewTimer.value)
   const user = getCurrentUser()
-  if (!user.userId) return
+  if (!user?.userId) return
 
   viewTimer.value = setTimeout(async () => {
       try {
@@ -162,6 +180,24 @@ onMounted(fetchDetail)
   width: 100%;
   display: block;
   background: #f5f7fa;
+}
+.pdf-frame {
+  width: 100%;
+  max-width: 900px;
+  min-height: 720px;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  background: #fff;
+}
+.file-box {
+  max-width: 900px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  background: #fafafa;
 }
 .desc {
   line-height: 1.6;

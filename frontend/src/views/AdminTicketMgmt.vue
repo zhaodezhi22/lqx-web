@@ -16,8 +16,8 @@
             <el-table-column prop="ticketPrice" label="票价" width="100" />
             <el-table-column prop="status" label="状态" width="100">
                <template #default="{ row }">
-                <el-tag :type="row.status === 1 ? 'success' : (row.status === 3 ? 'warning' : 'info')">
-                  {{ row.status === 1 ? '售票中' : (row.status === 3 ? '已下架' : '已结束') }}
+                <el-tag :type="getEventStatusTagType(row)">
+                  {{ getEventStatusLabel(row) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -25,7 +25,8 @@
               <template #default="{ row }">
                 <el-button link type="primary" @click="showEditDialog(row)">编辑</el-button>
                 <el-button link type="primary" @click="$router.push(`/admin/event/${row.eventId}/seats`)">座位图</el-button>
-                <el-button link type="warning" v-if="row.status === 1" @click="handleOffline(row)">下架</el-button>
+                <el-button link type="warning" v-if="row.status === 1 && !isEventEnded(row)" @click="handleOffline(row)">下架</el-button>
+                <el-button link type="success" v-else-if="row.status === 3 && !isEventEnded(row)" @click="handleOnline(row)">上架</el-button>
                 <el-button link type="info" @click="openCheckIn">核销检票</el-button>
               </template>
             </el-table-column>
@@ -142,7 +143,7 @@
 <script setup>
 import { onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Ticket } from '@element-plus/icons-vue'
+import { Plus, Ticket } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import SeatEditor from '../components/SeatEditor.vue'
 
@@ -240,6 +241,24 @@ const handleOffline = async (row) => {
   }
 }
 
+const handleOnline = async (row) => {
+  try {
+    await ElMessageBox.confirm('确定要重新上架该活动吗？上架后用户将可以重新购票。', '提示', {
+      type: 'info',
+      confirmButtonText: '确定上架',
+      cancelButtonText: '取消'
+    })
+
+    await request.post(`/admin/event/online/${row.eventId}`)
+    ElMessage.success('活动已重新上架')
+    fetchList()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.response?.data?.message || '操作失败')
+    }
+  }
+}
+
 const fetchList = async () => {
   loading.value = true
   try {
@@ -291,6 +310,29 @@ const auditRefund = (row, pass) => {
   })
 }
 
+
+const isEventEnded = (row) => {
+  if (!row?.showTime) return false
+  return new Date(row.showTime).getTime() <= Date.now()
+}
+
+const getEventStatusLabel = (row) => {
+  if (isEventEnded(row)) return '已结束'
+  if (row.status === 1) return '售票中'
+  if (row.status === 3) return '已下架'
+  if (row.status === 0) return '待审核'
+  if (row.status === 2) return '已驳回'
+  return '未知'
+}
+
+const getEventStatusTagType = (row) => {
+  if (isEventEnded(row)) return 'info'
+  if (row.status === 1) return 'success'
+  if (row.status === 3) return 'warning'
+  if (row.status === 0) return 'primary'
+  if (row.status === 2) return 'danger'
+  return 'info'
+}
 watch(activeTab, (val) => {
   if (val === 'events') {
     fetchList()
@@ -298,18 +340,6 @@ watch(activeTab, (val) => {
     fetchAuditList()
   }
 })
-
-const getStatusType = (status) => {
-  if (status === 1) return 'success'
-  if (status === 0) return 'warning'
-  return 'info'
-}
-
-const getStatusLabel = (status) => {
-  if (status === 1) return '售票中'
-  if (status === 0) return '未开始'
-  return '已结束'
-}
 
 const showAddDialog = () => {
   form.eventId = null
@@ -320,6 +350,8 @@ const showAddDialog = () => {
   form.totalSeats = 0
   form.status = 1
   form.seatLayoutJson = '[]'
+  form.description = ''
+  form.coverImage = ''
   dialogVisible.value = true
 }
 
@@ -337,6 +369,20 @@ const handleCoverSuccess = (res) => {
     } else {
         ElMessage.error(res.message || '上传失败')
     }
+}
+
+const beforeUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isImage) {
+    ElMessage.error('封面图片只能上传图片文件')
+    return false
+  }
+  if (!isLt5M) {
+    ElMessage.error('封面图片大小不能超过 5MB')
+    return false
+  }
+  return true
 }
 
 const submit = async () => {
@@ -365,4 +411,32 @@ onMounted(fetchList)
 <style scoped>
 .page { padding: 16px; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.avatar-uploader {
+  display: inline-flex;
+}
+.avatar-uploader :deep(.el-upload) {
+  width: 160px;
+  height: 160px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: var(--el-transition-duration-fast);
+  justify-content: center;
+  align-items: center;
+  background: #fafafa;
+}
+.avatar-uploader :deep(.el-upload:hover) {
+  border-color: var(--el-color-primary);
+}
+.avatar {
+  width: 160px;
+  height: 160px;
+  display: block;
+  object-fit: cover;
+}
+.avatar-uploader-icon {
+  font-size: 28px;
+  color: #8c939d;
+}
 </style>

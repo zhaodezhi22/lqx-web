@@ -20,12 +20,10 @@
             <el-icon><Document /></el-icon>
             <span>非遗业务</span>
           </template>
-          <el-menu-item index="/admin/audit-center">统一审核中心</el-menu-item>
-          <el-menu-item index="/admin/inheritor-review">传承人审核</el-menu-item>
+          <el-menu-item index="/admin/audit-center">综合审核入口</el-menu-item>
+          <el-menu-item index="/admin/inheritor-review">传承人/师承审核</el-menu-item>
           <el-menu-item index="/admin/inheritor-level-audit">传承人等级审核</el-menu-item>
-          <el-menu-item index="/admin/resource-audit">资源审核</el-menu-item>
-          <el-menu-item index="/admin/event-audit">活动审核</el-menu-item>
-          <el-menu-item index="/admin/product-audit">商品审核</el-menu-item>
+          <el-menu-item index="/admin/resource-audit">资源上传/审核</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="2" v-if="isAdmin">
@@ -35,6 +33,7 @@
           </template>
           <el-menu-item index="/admin/tickets">票务管理</el-menu-item>
           <el-menu-item index="/admin/mall">商城管理</el-menu-item>
+          <el-menu-item index="/admin/wallet">收益提现</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="3" v-if="isAdmin">

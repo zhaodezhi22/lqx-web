@@ -1,7 +1,8 @@
 export const AUDIT_TYPE_OPTIONS = [
   { label: '全部类型', value: 'ALL' },
   { label: '资源审核', value: 'RESOURCE' },
-  { label: '商品审核', value: 'PRODUCT' }
+  { label: '商品审核', value: 'PRODUCT' },
+  { label: '活动审核', value: 'EVENT' }
 ]
 
 export const AUDIT_STATUS_OPTIONS = [

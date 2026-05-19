@@ -125,5 +125,28 @@ public class DbMigrationConfig implements CommandLineRunner {
         } catch (Exception e) {
             // Ignore if exists
         }
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS wallet_withdraw_request (" +
+                            "id BIGINT PRIMARY KEY AUTO_INCREMENT," +
+                            "user_id BIGINT NOT NULL," +
+                            "user_role INT NULL," +
+                            "source_type VARCHAR(32) DEFAULT 'ALL'," +
+                            "amount DECIMAL(10,2) NOT NULL," +
+                            "account_name VARCHAR(100) NOT NULL," +
+                            "account_no VARCHAR(100) NOT NULL," +
+                            "remark VARCHAR(255) NULL," +
+                            "status TINYINT DEFAULT 1 COMMENT '0-待处理,1-已完成,2-已拒绝'," +
+                            "create_time DATETIME DEFAULT CURRENT_TIMESTAMP," +
+                            "processed_time DATETIME NULL," +
+                            "KEY idx_wallet_user_id (user_id)," +
+                            "KEY idx_wallet_create_time (create_time)" +
+                            ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模拟钱包提现记录表'"
+            );
+            System.out.println("Migration: Ensured wallet_withdraw_request table exists");
+        } catch (Exception e) {
+            System.err.println("Migration warning: " + e.getMessage());
+        }
     }
 }

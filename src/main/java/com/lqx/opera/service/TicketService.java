@@ -15,7 +15,7 @@ public interface TicketService extends IService<TicketOrder> {
     /**
      * 核销门票
      */
-    void verifyTicket(String orderNo, Long verifierId);
+    void verifyTicket(String orderNo, Long verifierId, Integer verifierRole);
 
     void cancelUnpaidOrders();
 
@@ -33,6 +33,11 @@ public interface TicketService extends IService<TicketOrder> {
      * 获取所有票务详情（管理员用）
      */
     List<TicketOrderDetailDto> getAllTicketDetails(Integer status);
+
+    /**
+     * 获取当前发布人名下活动的票务详情
+     */
+    List<TicketOrderDetailDto> getPublisherTicketDetails(Long publisherId, Integer status);
 
     /**
      * 获取用户票务详情列表

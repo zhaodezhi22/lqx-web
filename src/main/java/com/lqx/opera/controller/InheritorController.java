@@ -16,15 +16,21 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/inheritor")
 public class InheritorController {
+    private static final String MASTER_CHANGE_PREFIX = "[MASTER_CHANGE]";
 
     private final InheritorProfileService inheritorProfileService;
     private final SysUserService sysUserService;
     private final com.lqx.opera.service.InheritorLevelApplyService inheritorLevelApplyService;
+    private final com.lqx.opera.service.ApprenticeshipService apprenticeshipService;
 
-    public InheritorController(InheritorProfileService inheritorProfileService, SysUserService sysUserService, com.lqx.opera.service.InheritorLevelApplyService inheritorLevelApplyService) {
+    public InheritorController(InheritorProfileService inheritorProfileService,
+                               SysUserService sysUserService,
+                               com.lqx.opera.service.InheritorLevelApplyService inheritorLevelApplyService,
+                               com.lqx.opera.service.ApprenticeshipService apprenticeshipService) {
         this.inheritorProfileService = inheritorProfileService;
         this.sysUserService = sysUserService;
         this.inheritorLevelApplyService = inheritorLevelApplyService;
+        this.apprenticeshipService = apprenticeshipService;
     }
 
     @GetMapping("/featured")
@@ -118,6 +124,7 @@ public class InheritorController {
             if (u != null) {
                 java.util.Map<String, Object> map = new java.util.HashMap<>();
                 map.put("id", p.getId());
+                map.put("userId", p.getUserId());
                 map.put("name", u.getRealName() != null ? u.getRealName() : u.getUsername());
                 map.put("level", p.getLevel());
                 result.add(map);
@@ -253,6 +260,9 @@ public class InheritorController {
         
         // Prevent level modification directly
         profile.setLevel(exist.getLevel());
+        // Prevent direct master modification; master changes must go through admin audit.
+        profile.setMasterId(exist.getMasterId());
+        profile.setMasterName(exist.getMasterName());
         
         profile.setId(exist.getId());
         profile.setUserId(userId);
@@ -260,6 +270,54 @@ public class InheritorController {
         
         boolean ok = inheritorProfileService.updateById(profile);
         return ok ? Result.success(true) : Result.fail("更新失败");
+    }
+
+    @GetMapping("/master-change/my-apply")
+    @RequireRole(1)
+    public Result<MasterChangeApplyDto> getMyMasterChangeApply(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+
+        com.lqx.opera.entity.ApprenticeshipApply apply = apprenticeshipService.getPendingMasterChangeApply(userId);
+        if (apply == null) {
+            return Result.success(null);
+        }
+
+        InheritorProfile profile = inheritorProfileService.getOne(new LambdaQueryWrapper<InheritorProfile>()
+                .eq(InheritorProfile::getUserId, userId)
+                .last("LIMIT 1"));
+        populateMasterName(profile);
+
+        MasterChangeApplyDto dto = new MasterChangeApplyDto();
+        dto.setId(apply.getId());
+        dto.setStatus(apply.getStatus());
+        dto.setTargetMasterUserId(apply.getMasterId());
+        dto.setReason(stripMasterChangePrefix(apply.getApplyContent()));
+        dto.setCurrentMasterName(profile != null ? profile.getMasterName() : null);
+
+        SysUser targetMaster = sysUserService.getById(apply.getMasterId());
+        if (targetMaster != null) {
+            dto.setTargetMasterName(targetMaster.getRealName() != null && !targetMaster.getRealName().isEmpty()
+                    ? targetMaster.getRealName() : targetMaster.getUsername());
+        }
+        return Result.success(dto);
+    }
+
+    @PostMapping("/master-change/apply")
+    @RequireRole(1)
+    public Result<Boolean> applyMasterChange(@RequestBody MasterChangeRequest req, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) return Result.fail(401, "未登录");
+        if (req == null || req.getTargetMasterUserId() == null) {
+            return Result.fail(400, "请选择新的师父");
+        }
+
+        try {
+            apprenticeshipService.submitMasterChangeApply(userId, req.getTargetMasterUserId(), req.getReason());
+            return Result.success(true);
+        } catch (Exception e) {
+            return Result.fail(e.getMessage());
+        }
     }
     
     /**
@@ -302,5 +360,44 @@ public class InheritorController {
                 }
             }
         }
+    }
+
+    private String stripMasterChangePrefix(String content) {
+        if (content == null) {
+            return "";
+        }
+        return content.startsWith(MASTER_CHANGE_PREFIX) ? content.substring(MASTER_CHANGE_PREFIX.length()) : content;
+    }
+
+    public static class MasterChangeRequest {
+        private Long targetMasterUserId;
+        private String reason;
+
+        public Long getTargetMasterUserId() { return targetMasterUserId; }
+        public void setTargetMasterUserId(Long targetMasterUserId) { this.targetMasterUserId = targetMasterUserId; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+    }
+
+    public static class MasterChangeApplyDto {
+        private Long id;
+        private Integer status;
+        private Long targetMasterUserId;
+        private String currentMasterName;
+        private String targetMasterName;
+        private String reason;
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public Integer getStatus() { return status; }
+        public void setStatus(Integer status) { this.status = status; }
+        public Long getTargetMasterUserId() { return targetMasterUserId; }
+        public void setTargetMasterUserId(Long targetMasterUserId) { this.targetMasterUserId = targetMasterUserId; }
+        public String getCurrentMasterName() { return currentMasterName; }
+        public void setCurrentMasterName(String currentMasterName) { this.currentMasterName = currentMasterName; }
+        public String getTargetMasterName() { return targetMasterName; }
+        public void setTargetMasterName(String targetMasterName) { this.targetMasterName = targetMasterName; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
     }
 }

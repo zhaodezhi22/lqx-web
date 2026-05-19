@@ -4,7 +4,7 @@
       <div class="page-header">
         <div>
           <h2>后台操作日志</h2>
-          <p class="page-tip">记录审核员与管理员在后台发起的接口操作，便于回溯和排查。</p>
+          <p class="page-tip">记录管理员与超级管理员在后台发起的接口操作，便于回溯和排查。</p>
         </div>
         <el-button type="primary" @click="fetchList">刷新</el-button>
       </div>
@@ -89,10 +89,12 @@ const formatDate = (value) => {
 }
 
 const getRoleLabel = (role) => {
-  if (role === 3) return 'root'
-  if (role === 2) return '审核员'
+  if (role === 4) return '学徒'
+  if (role === 3) return '超级管理员'
+  if (role === 2) return '管理员'
   if (role === 1) return '传承人'
-  return '用户'
+  if (role === 0) return '普通用户'
+  return '未知角色'
 }
 
 const getMethodTagType = (value) => {

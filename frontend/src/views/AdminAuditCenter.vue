@@ -4,13 +4,31 @@
       <div class="page-header">
         <div>
           <h2>统一审核中心</h2>
-          <p class="page-tip">集中处理资源与商品审核，支持按类型、状态与关键字快速筛选。</p>
+          <p class="page-tip">集中处理资源、商品、活动审核，支持按类型、状态与关键字快速筛选。</p>
         </div>
         <div class="header-actions">
           <el-button @click="openBatchAudit(1)" :disabled="!multipleSelection.length">批量通过</el-button>
           <el-button type="danger" plain @click="openBatchAudit(2)" :disabled="!multipleSelection.length">批量驳回</el-button>
           <el-button type="primary" @click="fetchList">刷新</el-button>
         </div>
+      </div>
+
+      <div class="entry-grid">
+        <el-card shadow="never" class="entry-card current">
+          <div class="entry-title">内容审核区</div>
+          <div class="entry-desc">集中审核资源、商品、活动，支持按类型筛选与批量处理。</div>
+          <el-button type="primary" @click="resetFilters">查看全部</el-button>
+        </el-card>
+        <el-card shadow="never" class="entry-card">
+          <div class="entry-title">传承人/师承审核</div>
+          <div class="entry-desc">处理传承人申请、用户自填流派收录与师承变更申请。</div>
+          <el-button @click="goToInheritorAudit">前往处理</el-button>
+        </el-card>
+        <el-card shadow="never" class="entry-card">
+          <div class="entry-title">传承人等级审核</div>
+          <div class="entry-desc">处理等级晋升申请、佐证材料查看与等级变更审核。</div>
+          <el-button @click="goToLevelAudit">前往处理</el-button>
+        </el-card>
       </div>
 
       <PageFilterBar>
@@ -61,14 +79,18 @@
           <div class="stat-label">商品条数</div>
           <div class="stat-value success">{{ stats.product }}</div>
         </el-card>
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-label">活动条数</div>
+          <div class="stat-value primary">{{ stats.event }}</div>
+        </el-card>
       </div>
 
       <el-table :data="list" border stripe v-loading="loading" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="50" :selectable="isRowSelectable" />
         <el-table-column prop="bizType" label="审核类型" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.bizType === 'RESOURCE' ? 'warning' : 'success'">
-              {{ row.bizType === 'RESOURCE' ? '资源' : '商品' }}
+            <el-tag :type="getBizTypeTagType(row.bizType)">
+              {{ getBizTypeLabel(row.bizType) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -139,15 +161,17 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="resourceDetailVisible" title="资源详情" width="50%">
-      <div v-if="resourceDetail" class="resource-detail">
-        <h3>{{ resourceDetail.title }}</h3>
-        <p class="detail-meta">提交人：{{ resourceDetail.applicantName || '-' }}</p>
-        <p class="detail-meta">分类：{{ resourceDetail.subTitle || '-' }}</p>
-        <p class="detail-meta">类型：{{ resourceDetail.meta || '-' }}</p>
-        <img v-if="resourceDetail.coverImage" :src="resourceDetail.coverImage" class="detail-image" />
-        <p class="detail-desc">{{ resourceDetail.description || '暂无描述' }}</p>
-        <p class="detail-meta">资源链接：{{ resourceDetail.fileUrl || '-' }}</p>
+    <el-dialog v-model="detailDialogVisible" :title="detailDialogTitle" width="50%">
+      <div v-if="detailRecord" class="resource-detail">
+        <h3>{{ detailRecord.title }}</h3>
+        <p class="detail-meta">提交人：{{ detailRecord.applicantName || '-' }}</p>
+        <p class="detail-meta" v-if="detailRecord.bizType === 'RESOURCE'">分类：{{ detailRecord.subTitle || '-' }}</p>
+        <p class="detail-meta" v-else-if="detailRecord.bizType === 'EVENT'">活动地点：{{ detailRecord.subTitle || '-' }}</p>
+        <p class="detail-meta">业务信息：{{ detailRecord.meta || '-' }}</p>
+        <p class="detail-meta" v-if="detailRecord.bizType === 'EVENT'">活动时间：{{ formatDate(detailRecord.eventTime) }}</p>
+        <img v-if="detailRecord.coverImage" :src="detailRecord.coverImage" class="detail-image" />
+        <p class="detail-desc">{{ detailRecord.description || '暂无描述' }}</p>
+        <p class="detail-meta" v-if="detailRecord.bizType === 'RESOURCE'">资源链接：{{ detailRecord.fileUrl || '-' }}</p>
       </div>
     </el-dialog>
 
@@ -160,10 +184,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import PageFilterBar from '../components/common/PageFilterBar.vue'
 import {
@@ -175,6 +199,7 @@ import {
 import { clearRememberedState, loadRememberedState, saveRememberedState } from '../utils/viewState'
 
 const route = useRoute()
+const router = useRouter()
 const list = ref([])
 const loading = ref(false)
 const rememberedState = loadRememberedState('admin-audit-center-filters', {
@@ -198,8 +223,9 @@ const auditMode = ref('single')
 const auditStatus = ref(1)
 const auditRemark = ref('')
 const currentRow = ref(null)
-const resourceDetailVisible = ref(false)
-const resourceDetail = ref(null)
+const detailDialogVisible = ref(false)
+const detailDialogTitle = ref('详情')
+const detailRecord = ref(null)
 const productDetailVisible = ref(false)
 const detailProductId = ref(null)
 
@@ -219,9 +245,24 @@ const stats = computed(() => {
     total: source.length,
     pending: source.filter(item => item.status === 0).length,
     resource: source.filter(item => item.bizType === 'RESOURCE').length,
-    product: source.filter(item => item.bizType === 'PRODUCT').length
+    product: source.filter(item => item.bizType === 'PRODUCT').length,
+    event: source.filter(item => item.bizType === 'EVENT').length
   }
 })
+
+const getBizTypeLabel = (bizType) => {
+  if (bizType === 'RESOURCE') return '资源'
+  if (bizType === 'PRODUCT') return '商品'
+  if (bizType === 'EVENT') return '活动'
+  return '未知'
+}
+
+const getBizTypeTagType = (bizType) => {
+  if (bizType === 'RESOURCE') return 'warning'
+  if (bizType === 'PRODUCT') return 'success'
+  if (bizType === 'EVENT') return 'primary'
+  return 'info'
+}
 
 const fetchList = async () => {
   loading.value = true
@@ -280,6 +321,14 @@ const handlePendingToggle = (value) => {
   handleSearch()
 }
 
+const goToInheritorAudit = () => {
+  router.push('/admin/inheritor-review')
+}
+
+const goToLevelAudit = () => {
+  router.push('/admin/inheritor-level-audit')
+}
+
 const syncRouteFilters = () => {
   if (route.query.type) {
     bizType.value = String(route.query.type).toUpperCase()
@@ -293,9 +342,10 @@ const syncRouteFilters = () => {
 const viewDetail = async (row) => {
   try {
     const res = await request.get(`/admin/audit-center/${row.bizType}/${row.recordId}`)
-    if (row.bizType === 'RESOURCE') {
-      resourceDetail.value = res.data
-      resourceDetailVisible.value = true
+    if (row.bizType === 'RESOURCE' || row.bizType === 'EVENT') {
+      detailRecord.value = res.data
+      detailDialogTitle.value = `${getBizTypeLabel(row.bizType)}详情`
+      detailDialogVisible.value = true
       return
     }
     detailProductId.value = row.recordId
@@ -331,7 +381,7 @@ const submitAudit = async () => {
     return
   }
   try {
-    await ElMessageBox.confirm(`确定${actionText}${auditMode.value === 'batch' ? '所选数据' : `该${currentRow.value?.bizType === 'RESOURCE' ? '资源' : '商品'}` }吗？`, '审核确认', {
+    await ElMessageBox.confirm(`确定${actionText}${auditMode.value === 'batch' ? '所选数据' : `该${getBizTypeLabel(currentRow.value?.bizType)}` }吗？`, '审核确认', {
       type: auditStatus.value === 1 ? 'success' : 'warning'
     })
     if (auditMode.value === 'batch') {
@@ -365,6 +415,14 @@ onMounted(() => {
   syncRouteFilters()
   fetchList()
 })
+
+watch(
+  () => route.fullPath,
+  () => {
+    syncRouteFilters()
+    fetchList()
+  }
+)
 </script>
 
 <style scoped>
@@ -393,6 +451,29 @@ onMounted(() => {
   gap: 12px;
   margin-bottom: 20px;
 }
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.entry-card {
+  border-radius: 12px;
+}
+.entry-card.current {
+  border-color: rgba(64, 158, 255, 0.35);
+}
+.entry-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+.entry-desc {
+  margin: 10px 0 16px;
+  line-height: 1.7;
+  color: #606266;
+  min-height: 48px;
+}
 .stat-card {
   border-radius: 12px;
 }
@@ -411,6 +492,9 @@ onMounted(() => {
 }
 .stat-value.success {
   color: #67c23a;
+}
+.stat-value.primary {
+  color: #409eff;
 }
 .filter-item {
   width: 180px;

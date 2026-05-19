@@ -37,13 +37,18 @@ public class PerformanceEventController {
 
     @GetMapping
     public Result<List<com.lqx.opera.dto.EventDetailDTO>> list(@RequestParam(required = false) Boolean all, @RequestParam(required = false) Boolean history) {
+        syncExpiredEventStatus();
         LambdaQueryWrapper<PerformanceEvent> wrapper = new LambdaQueryWrapper<>();
         if (Boolean.TRUE.equals(all)) {
             // Admin: Sort by Status (1-Selling first), then ShowTime
-            wrapper.last("ORDER BY CASE WHEN status = 1 THEN 0 ELSE 1 END ASC, show_time DESC");
+            wrapper.last("ORDER BY CASE " +
+                    "WHEN status = 1 AND show_time > NOW() THEN 0 " +
+                    "WHEN status = 3 AND show_time > NOW() THEN 1 " +
+                    "WHEN show_time <= NOW() THEN 2 " +
+                    "ELSE 3 END ASC, show_time DESC");
         } else if (Boolean.TRUE.equals(history)) {
             // User: History mode - show ended events
-            wrapper.eq(PerformanceEvent::getStatus, 1);
+            wrapper.in(PerformanceEvent::getStatus, 1, 3);
             wrapper.le(PerformanceEvent::getShowTime, LocalDateTime.now());
             wrapper.orderByDesc(PerformanceEvent::getShowTime);
         } else {
@@ -143,6 +148,7 @@ public class PerformanceEventController {
 
     @GetMapping("/{id}")
     public Result<PerformanceEvent> detail(@PathVariable Long id) {
+        syncExpiredEventStatus();
         PerformanceEvent event = performanceEventService.getById(id);
         if (event == null) {
             return Result.fail(404, "演出不存在");
@@ -247,6 +253,7 @@ public class PerformanceEventController {
     public Result<List<PerformanceEvent>> myEvents(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         if (userId == null) return Result.fail(401, "未登录");
+        syncExpiredEventStatus();
         // Sort order:
         // 1. Pending Audit (status=0)
         // 2. Active & Not Ended (status=1 and show_time > now)
@@ -260,12 +267,25 @@ public class PerformanceEventController {
         String sql = "ORDER BY CASE " +
                      "WHEN status = 0 THEN 1 " + // Pending first
                      "WHEN status = 1 AND show_time > NOW() THEN 2 " + // Active & Future
-                     "WHEN status = 3 THEN 3 " + // Offline
+                     "WHEN status = 3 AND show_time > NOW() THEN 3 " + // Offline but not ended
                      "WHEN show_time <= NOW() THEN 4 " + // Ended (includes expired status 1)
                      "ELSE 5 END ASC, show_time DESC";
 
         return Result.success(performanceEventService.list(new LambdaQueryWrapper<PerformanceEvent>()
                 .eq(PerformanceEvent::getPublisherId, userId)
                 .last(sql)));
+    }
+
+    private void syncExpiredEventStatus() {
+        List<PerformanceEvent> expiredActiveEvents = performanceEventService.list(
+                new LambdaQueryWrapper<PerformanceEvent>()
+                        .eq(PerformanceEvent::getStatus, 1)
+                        .le(PerformanceEvent::getShowTime, LocalDateTime.now())
+        );
+        if (expiredActiveEvents == null || expiredActiveEvents.isEmpty()) {
+            return;
+        }
+        expiredActiveEvents.forEach(item -> item.setStatus(3));
+        performanceEventService.updateBatchById(expiredActiveEvents);
     }
 }
