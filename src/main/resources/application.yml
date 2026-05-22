@@ -15,7 +15,7 @@ spring:
       mode: always
       continue-on-error: true
 jwt:
-  secret: "ChangeThisSecretToAStrongOne123456"
+  secret: "liuqinopera"
   expire-minutes: 120
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss

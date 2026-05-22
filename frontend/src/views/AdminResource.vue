@@ -68,8 +68,38 @@
         <el-form-item label="简介">
           <el-input v-model="editForm.description" type="textarea" />
         </el-form-item>
-        <el-form-item label="封面URL">
-          <el-input v-model="editForm.coverImg" />
+        <el-form-item label="封面图片">
+          <el-upload
+            class="cover-uploader"
+            action="/api/file/upload"
+            :show-file-list="false"
+            :before-upload="beforeCoverUpload"
+            :on-success="handleCoverSuccess"
+          >
+            <img v-if="editForm.coverImg" :src="editForm.coverImg" class="cover-image" />
+            <el-icon v-else class="cover-uploader-icon"><Plus /></el-icon>
+          </el-upload>
+          <div class="upload-tip">点击图片可重新上传替换封面。</div>
+        </el-form-item>
+        <el-form-item label="资源文件">
+          <el-upload
+            action="/api/file/upload"
+            :show-file-list="false"
+            :on-success="handleFileSuccess"
+          >
+            <div v-if="isImageUrl(editForm.fileUrl)" class="resource-preview-wrapper">
+              <img :src="editForm.fileUrl" class="resource-preview-image" />
+            </div>
+            <el-button v-else type="primary" plain>重新上传资源文件</el-button>
+          </el-upload>
+          <div v-if="editForm.fileUrl && !isImageUrl(editForm.fileUrl)" class="file-meta">
+            当前文件：{{ extractFileName(editForm.fileUrl) }}
+          </div>
+          <div v-if="editForm.fileUrl" class="file-actions">
+            <el-button link type="primary" @click="previewFile(editForm.fileUrl)">点击预览</el-button>
+            <el-button link type="primary" @click="openInNewTab(editForm.fileUrl)">新窗口打开</el-button>
+          </div>
+          <div class="upload-tip">上传后会直接替换当前资源文件。</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -77,12 +107,26 @@
         <el-button type="primary" @click="saveEdit">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="previewVisible" title="资源预览" width="70%" destroy-on-close>
+      <div class="preview-container" v-if="previewUrl">
+        <img v-if="previewType === 'image'" :src="previewUrl" class="preview-image" />
+        <video v-else-if="previewType === 'video'" :src="previewUrl" class="preview-media" controls />
+        <audio v-else-if="previewType === 'audio'" :src="previewUrl" class="preview-audio" controls />
+        <iframe v-else-if="previewType === 'pdf'" :src="previewUrl" class="preview-frame" />
+        <div v-else class="preview-fallback">
+          <p>当前文件类型暂不支持页内预览。</p>
+          <el-button type="primary" @click="openInNewTab(previewUrl)">新窗口打开</el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import request from '../utils/request'
 import { hasAnyRole } from '../utils/permission'
 
@@ -93,6 +137,9 @@ const keyword = ref('')
 const newCategoryName = ref('')
 const editVisible = ref(false)
 const editForm = reactive({})
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewType = ref('')
 const canManageCategories = computed(() => hasAnyRole([2, 3]))
 
 const getTypeLabel = (type) => {
@@ -132,6 +179,86 @@ const fetchCategories = async () => {
 const edit = (row) => {
   Object.assign(editForm, row)
   editVisible.value = true
+}
+
+const beforeCoverUpload = (file) => {
+  const isImage = file.type?.startsWith('image/')
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isImage) {
+    ElMessage.error('封面必须为图片文件')
+    return false
+  }
+  if (!isLt5M) {
+    ElMessage.error('封面图片大小不能超过 5MB')
+    return false
+  }
+  return true
+}
+
+const handleCoverSuccess = (res) => {
+  if (res.code === 200) {
+    editForm.coverImg = res.data
+    ElMessage.success('封面上传成功')
+    return
+  }
+  ElMessage.error(res.message || '封面上传失败')
+}
+
+const handleFileSuccess = (res) => {
+  if (res.code === 200) {
+    editForm.fileUrl = res.data
+    ElMessage.success('资源文件上传成功')
+    return
+  }
+  ElMessage.error(res.message || '资源文件上传失败')
+}
+
+const isImageUrl = (url) => {
+  if (!url) return false
+  return /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(url)
+}
+
+const isVideoUrl = (url) => {
+  if (!url) return false
+  return /\.(mp4|webm|ogg|mov|m4v)$/i.test(url)
+}
+
+const isAudioUrl = (url) => {
+  if (!url) return false
+  return /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(url)
+}
+
+const isPdfUrl = (url) => {
+  if (!url) return false
+  return /\.pdf$/i.test(url)
+}
+
+const extractFileName = (url) => {
+  if (!url) return ''
+  const normalized = String(url).split('?')[0]
+  return normalized.substring(normalized.lastIndexOf('/') + 1)
+}
+
+const previewFile = (url) => {
+  if (!url) return
+  previewUrl.value = url
+  if (isImageUrl(url)) {
+    previewType.value = 'image'
+  } else if (isVideoUrl(url)) {
+    previewType.value = 'video'
+  } else if (isAudioUrl(url)) {
+    previewType.value = 'audio'
+  } else if (isPdfUrl(url)) {
+    previewType.value = 'pdf'
+  } else {
+    previewType.value = 'other'
+  }
+  previewVisible.value = true
+}
+
+const openInNewTab = (url) => {
+  if (!url) return
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 const saveEdit = async () => {
@@ -228,5 +355,90 @@ onMounted(() => {
 }
 .category-tag {
   margin-right: 0;
+}
+.cover-uploader {
+  display: inline-flex;
+}
+.cover-uploader :deep(.el-upload) {
+  width: 160px;
+  height: 160px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 12px;
+  background: #fafafa;
+  overflow: hidden;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+.cover-image {
+  width: 160px;
+  height: 160px;
+  display: block;
+  object-fit: cover;
+}
+.cover-uploader-icon {
+  font-size: 28px;
+  color: #8c939d;
+}
+.resource-preview-wrapper {
+  width: 180px;
+  height: 180px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resource-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.upload-tip {
+  margin-top: 8px;
+  color: #909399;
+  font-size: 12px;
+}
+.file-meta {
+  margin-top: 8px;
+  color: #606266;
+  font-size: 13px;
+  word-break: break-all;
+}
+.file-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 12px;
+}
+.preview-container {
+  min-height: 360px;
+}
+.preview-image,
+.preview-media,
+.preview-frame {
+  width: 100%;
+  max-height: 70vh;
+  border: 0;
+  border-radius: 8px;
+  background: #000;
+}
+.preview-image {
+  object-fit: contain;
+  background: #f5f7fa;
+}
+.preview-audio {
+  width: 100%;
+  margin-top: 24px;
+}
+.preview-fallback {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #606266;
+  gap: 16px;
 }
 </style>
